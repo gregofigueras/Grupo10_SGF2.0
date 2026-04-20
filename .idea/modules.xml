@@ -5,6 +5,7 @@
       <module fileurl="file://$PROJECT_DIR$/Grupo10_SGF.iml" filepath="$PROJECT_DIR$/Grupo10_SGF.iml" />
       <module fileurl="file://$PROJECT_DIR$/Operador/Operador.iml" filepath="$PROJECT_DIR$/Operador/Operador.iml" />
       <module fileurl="file://$PROJECT_DIR$/Pantalla/Pantalla.iml" filepath="$PROJECT_DIR$/Pantalla/Pantalla.iml" />
+      <module fileurl="file://$PROJECT_DIR$/ServidorCentral/ServidorCentral.iml" filepath="$PROJECT_DIR$/ServidorCentral/ServidorCentral.iml" />
       <module fileurl="file://$PROJECT_DIR$/kiosko/kiosco.iml" filepath="$PROJECT_DIR$/kiosko/kiosco.iml" />
     </modules>
   </component>
