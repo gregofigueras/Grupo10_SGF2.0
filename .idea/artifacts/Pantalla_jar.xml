@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="Pantalla:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/Pantalla_jar</output-path>
+    <root id="archive" name="Pantalla.jar">
+      <element id="module-output" name="Pantalla" />
+    </root>
+  </artifact>
+</component>

@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="kiosco:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/kiosco_jar</output-path>
+    <root id="archive" name="kiosco.jar">
+      <element id="module-output" name="kiosco" />
+    </root>
+  </artifact>
+</component>
