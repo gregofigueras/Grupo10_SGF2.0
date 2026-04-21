@@ -3,18 +3,23 @@ package servidor;
 import modelo.Turno;
 import java.io.*;
 import java.net.*;
-import java.util.LinkedList;
+import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ServidorCentral {
-    // La memoria RAM centralizada que pide el TP
-    private static Queue<Turno> filaEspera = new LinkedList<>();
+    // RAM 100% preparada para concurrencia (múltiples kioscos y puestos a la vez)
+    private static Queue<Turno> filaEspera = new ConcurrentLinkedQueue<>();
+    private static Map<Integer, Turno> puestosAtencion = new ConcurrentHashMap<>();
 
     private static final int PUERTO_KIOSCO = 5000;
-    // Luego agregaremos los puertos para Operador y Pantalla
+    private static final int PUERTO_OPERADOR = 5001;
+    private static final String IP_PANTALLA = "127.0.0.1";
+    private static final int PUERTO_PANTALLA = 6000;
 
     public static void main(String[] args) {
-        System.out.println("Servidor Central Iniciado...");
+        System.out.println("Servidor Central Iniciado (Modo Multi-hilo)...");
         iniciarEscuchaKioscos();
         iniciarEscuchaOperadores();
     }
@@ -25,7 +30,8 @@ public class ServidorCentral {
                 System.out.println("Escuchando Kioscos en puerto " + PUERTO_KIOSCO);
                 while (true) {
                     Socket socketKiosco = serverSocket.accept();
-                    manejarRegistroKiosco(socketKiosco);
+                    // Ejecutamos cada petición en un hilo separado para que no bloquee a otros kioscos
+                    new Thread(() -> manejarRegistroKiosco(socketKiosco)).start();
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -40,28 +46,19 @@ public class ServidorCentral {
         ) {
             String nuevoDni = in.readLine();
             if (nuevoDni != null) {
-                // Validación de Duplicados (movida desde el Operador al Servidor Central)
                 boolean existe = filaEspera.stream().anyMatch(t -> t.getDniCliente().equals(nuevoDni));
 
                 if (existe) {
                     out.println("DUPLICADO");
-                    System.out.println("Rechazado: DNI " + nuevoDni + " ya está en fila.");
                 } else {
                     filaEspera.add(new Turno(nuevoDni));
                     out.println("OK");
-                    System.out.println("Registrado: DNI " + nuevoDni + ". Total en fila: " + filaEspera.size());
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
-    private static final int PUERTO_OPERADOR = 5001;
-    private static final String IP_PANTALLA = "127.0.0.1";
-    private static final int PUERTO_PANTALLA = 6000;
-
-    // (Tu main y el iniciarEscuchaKioscos() quedan igual, pero agrega esta llamada al main:)
-    // iniciarEscuchaOperadores();
 
     private static void iniciarEscuchaOperadores() {
         new Thread(() -> {
@@ -69,7 +66,8 @@ public class ServidorCentral {
                 System.out.println("Escuchando Operadores en puerto " + PUERTO_OPERADOR);
                 while (true) {
                     Socket socketOperador = serverSocket.accept();
-                    manejarLlamadoOperador(socketOperador);
+                    // Ejecutamos en hilo separado. El Puesto 1 NUNCA bloqueará al Puesto 2.
+                    new Thread(() -> manejarLlamadoOperador(socketOperador)).start();
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -83,29 +81,52 @@ public class ServidorCentral {
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)
         ) {
             String comando = in.readLine();
+            if (comando == null) return;
 
-            if ("LLAMAR".equals(comando)) {
+            String[] partes = comando.split("_");
+            String accion = partes[0];
+            int idPuesto = Integer.parseInt(partes[1]);
+
+            if ("LLAMAR".equals(accion)) {
                 if (filaEspera.isEmpty()) {
-                    out.println("VACIA"); // Le avisa al Operador que no hay nadie
+                    out.println("VACIA");
                 } else {
-                    Turno turno = filaEspera.poll(); // Saca de la RAM
-                    out.println(turno.getDniCliente()); // Le pasa el DNI al Operador
+                    Turno turno = filaEspera.poll();
+                    turno.setPuestoAtencion(idPuesto);
+                    turno.incrementarIntentos();
 
-                    // EL SERVIDOR LE MANDA EL MENSAJE A LA PANTALLA (Cumple con el TP)
-                    notificarPantalla(turno.getDniCliente());
+                    puestosAtencion.put(idPuesto, turno);
+
+                    out.println("OK_" + turno.getDniCliente());
+                    notificarPantalla("NUEVO_" + turno.getDniCliente() + "_" + idPuesto);
+                }
+            } else if ("RELLAMAR".equals(accion)) {
+                Turno turno = puestosAtencion.get(idPuesto);
+                if (turno != null) {
+                    turno.incrementarIntentos();
+                    if (turno.getIntentosLlamado() <= 3) {
+                        out.println("OK_" + turno.getDniCliente());
+                        notificarPantalla("URGENTE_" + turno.getDniCliente() + "_" + idPuesto);
+                    } else {
+                        puestosAtencion.remove(idPuesto);
+                        out.println("DESCARTADO");
+                        notificarPantalla("DESCARTADO_" + turno.getDniCliente() + "_" + idPuesto);
+                    }
+                } else {
+                    out.println("VACIA"); // Si toca rellamar pero el turno ya se eliminó
                 }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private static void notificarPantalla(String dni) {
+    private static void notificarPantalla(String mensaje) {
         try (Socket socket = new Socket(IP_PANTALLA, PUERTO_PANTALLA);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-            out.println(dni);
+            out.println(mensaje);
         } catch (IOException e) {
-            System.out.println("Error al notificar a la Pantalla. ¿Está encendida el MonitorSala?");
+            // Ignoramos el error en consola para no ensuciar si la pantalla no está abierta
         }
     }
 }

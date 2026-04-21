@@ -11,128 +11,201 @@ import java.util.LinkedList;
 public class MonitorSala extends JFrame {
 
     private JLabel lblTurnoActual;
+    private JLabel lblPuesto;
+    private JPanel panelActual;
     private DefaultListModel<String> historialModel;
     private JList<String> listHistorial;
 
-    // Lista para manejar la lógica interna de los 4 últimos turnos
     private LinkedList<String> historial;
+    private Thread hiloParpadeo; // Controlamos el parpadeo para que no se pisen
 
     private static final int PUERTO_ESCUCHA_OPERADOR = 6000;
+
+    // Paleta de colores oscuros
+    private final Color COLOR_FONDO = new Color(15, 23, 42);
+    private final Color COLOR_PANEL = new Color(30, 41, 59);
+    private final Color COLOR_TEXTO_CLARO = new Color(241, 245, 249);
+    private final Color COLOR_ROJO_TURNO = new Color(239, 68, 68);
 
     public MonitorSala() {
         historial = new LinkedList<>();
 
-        // 1. Configuración de la ventana principal
-        setTitle("Monitor de Sala - Pantalla Pública");
-        setSize(500, 450);
+        setTitle("Pantalla de Turnos");
+        setSize(600, 700);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(15, 15));
         setLocationRelativeTo(null);
+        getContentPane().setBackground(COLOR_FONDO);
 
-        // 2. Panel Superior: Turno Actual (El número más grande)
-        JPanel panelActual = new JPanel(new BorderLayout());
-        panelActual.setBackground(new Color(220, 240, 255));
-        panelActual.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        // --- CONTENEDOR SUPERIOR ---
+        JPanel panelNorte = new JPanel(new BorderLayout(10, 10));
+        panelNorte.setBackground(COLOR_FONDO);
 
-        JLabel lblTitulo = new JLabel("TURNO ACTUAL", SwingConstants.CENTER);
-        lblTitulo.setFont(new Font("Arial", Font.BOLD, 28));
-        panelActual.add(lblTitulo, BorderLayout.NORTH);
+        JLabel lblHeader = new JLabel("Pantalla de Turnos", SwingConstants.CENTER);
+        lblHeader.setFont(new Font("Segoe UI", Font.BOLD, 30));
+        lblHeader.setForeground(COLOR_TEXTO_CLARO);
+        lblHeader.setBorder(BorderFactory.createEmptyBorder(20, 0, 10, 0));
+        panelNorte.add(lblHeader, BorderLayout.NORTH);
 
-        lblTurnoActual = new JLabel("---", SwingConstants.CENTER);
-        lblTurnoActual.setFont(new Font("Arial", Font.BOLD, 56));
-        lblTurnoActual.setForeground(new Color(0, 102, 204));
-        panelActual.add(lblTurnoActual, BorderLayout.CENTER);
+        // --- PANEL CENTRAL (Turno Actual) ---
+        panelActual = new JPanel(new GridLayout(3, 1));
+        panelActual.setBackground(COLOR_PANEL);
+        panelActual.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(COLOR_ROJO_TURNO, 2),
+                BorderFactory.createEmptyBorder(30, 20, 30, 20)
+        ));
 
-        add(panelActual, BorderLayout.NORTH);
+        JLabel lblSubtitulo = new JLabel("Turno Llamado", SwingConstants.LEFT);
+        lblSubtitulo.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+        lblSubtitulo.setForeground(new Color(148, 163, 184));
+        panelActual.add(lblSubtitulo);
 
-        // 3. Panel Inferior: Historial de los 4 anteriores
+        lblTurnoActual = new JLabel("---", SwingConstants.LEFT);
+        lblTurnoActual.setFont(new Font("Segoe UI", Font.BOLD, 80));
+        lblTurnoActual.setForeground(COLOR_ROJO_TURNO);
+        panelActual.add(lblTurnoActual);
+
+        lblPuesto = new JLabel("Diríjase al Puesto: ---", SwingConstants.RIGHT);
+        lblPuesto.setFont(new Font("Segoe UI", Font.BOLD, 26));
+        lblPuesto.setForeground(COLOR_TEXTO_CLARO);
+        panelActual.add(lblPuesto);
+
+        JPanel wrapperCentro = new JPanel(new BorderLayout());
+        wrapperCentro.setBackground(COLOR_FONDO);
+        wrapperCentro.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 20));
+        wrapperCentro.add(panelActual, BorderLayout.CENTER);
+
+        panelNorte.add(wrapperCentro, BorderLayout.CENTER);
+        add(panelNorte, BorderLayout.NORTH);
+
+        // --- PANEL INFERIOR (Historial) ---
         JPanel panelHistorial = new JPanel(new BorderLayout());
-        panelHistorial.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(Color.GRAY),
-                "Últimos Turnos Llamados",
-                // Configuración de la fuente del título del borde
-                0, 0, new Font("Arial", Font.BOLD, 14)));
+        panelHistorial.setBackground(COLOR_FONDO);
+        panelHistorial.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
+
+        JLabel lblHistorialTitulo = new JLabel("Anteriores");
+        lblHistorialTitulo.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        lblHistorialTitulo.setForeground(new Color(148, 163, 184));
+        lblHistorialTitulo.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        panelHistorial.add(lblHistorialTitulo, BorderLayout.NORTH);
 
         historialModel = new DefaultListModel<>();
         listHistorial = new JList<>(historialModel);
-        listHistorial.setFont(new Font("Arial", Font.PLAIN, 20));
-        listHistorial.setBackground(new Color(245, 245, 245));
-
-        // El usuario no interactúa con la lista, es solo visual
+        listHistorial.setFont(new Font("Segoe UI", Font.PLAIN, 22));
+        listHistorial.setBackground(COLOR_PANEL);
+        listHistorial.setForeground(new Color(203, 213, 225));
+        listHistorial.setFixedCellHeight(50);
         listHistorial.setEnabled(false);
 
-        panelHistorial.add(new JScrollPane(listHistorial), BorderLayout.CENTER);
+        JScrollPane scrollPane = new JScrollPane(listHistorial);
+        scrollPane.setBorder(BorderFactory.createLineBorder(COLOR_PANEL));
+        panelHistorial.add(scrollPane, BorderLayout.CENTER);
+
         add(panelHistorial, BorderLayout.CENTER);
 
-        // 4. Iniciar el servidor en un hilo secundario para no congelar la pantalla
         iniciarServidorOperador();
     }
 
     private void iniciarServidorOperador() {
-        Thread hiloServidor = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    ServerSocket serverSocket = new ServerSocket(PUERTO_ESCUCHA_OPERADOR);
-                    System.out.println("Monitor de sala encendido. Escuchando en puerto " + PUERTO_ESCUCHA_OPERADOR);
-
-                    while (true) {
-                        // Esperamos a que el Operador presione "Llamar Siguiente"
-                        Socket socketOperador = serverSocket.accept();
-
-                        BufferedReader in = new BufferedReader(new InputStreamReader(socketOperador.getInputStream()));
-                        String dniLlamado = in.readLine();
-
-                        if (dniLlamado != null) {
-                            // Actualizamos la interfaz gráfica de forma segura
-                            SwingUtilities.invokeLater(new Runnable() {
-                                @Override
-                                public void run() {
-                                    actualizarPantalla(dniLlamado);
-                                }
-                            });
-                        }
-
-                        in.close();
-                        socketOperador.close();
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
+        Thread hiloServidor = new Thread(() -> {
+            try (ServerSocket serverSocket = new ServerSocket(PUERTO_ESCUCHA_OPERADOR)) {
+                while (true) {
+                    Socket socketOperador = serverSocket.accept();
+                    BufferedReader in = new BufferedReader(new InputStreamReader(socketOperador.getInputStream()));
+                    String mensaje = in.readLine();
+                    if (mensaje != null) SwingUtilities.invokeLater(() -> procesarMensaje(mensaje));
+                    in.close();
+                    socketOperador.close();
                 }
-            }
+            } catch (Exception e) { e.printStackTrace(); }
         });
         hiloServidor.start();
     }
 
-    private void actualizarPantalla(String nuevoDni) {
-        String turnoAnterior = lblTurnoActual.getText();
+    private void procesarMensaje(String mensaje) {
+        try {
+            String[] partes = mensaje.split("_");
+            String tipo = partes[0];
+            String dni = partes[1];
+            String puesto = partes[2];
 
-        // Si ya había alguien siendo atendido, lo empujamos al historial
-        if (!turnoAnterior.equals("---")) {
-            historial.addFirst(turnoAnterior); // Lo agregamos arriba de todo
+            // NUEVA LÓGICA: Si el servidor avisa que el turno fue descartado (Expiró)
+            if ("DESCARTADO".equals(tipo)) {
+                // Lo borramos si ya estaba en el historial (por algún motivo)
+                historial.removeIf(s -> s.contains(dni));
+                // Lo mandamos al historial con la etiqueta de EXPIRADO
+                historial.addFirst("   " + dni + "                    EXPIRADO");
+                if (historial.size() > 4) historial.removeLast();
 
-            // Si superamos los 4 registros históricos, borramos el más viejo para mantener 5 lugares en total
-            if (historial.size() > 4) {
-                historial.removeLast();
+                historialModel.clear();
+                for (String s : historial) historialModel.addElement(s);
+
+                // Si el turno que expiró es el que está en el recuadro grande, lo limpiamos
+                if (lblTurnoActual.getText().equals(dni)) {
+                    if (hiloParpadeo != null && hiloParpadeo.isAlive()) hiloParpadeo.interrupt();
+                    lblTurnoActual.setText("---");
+                    lblPuesto.setText("Diríjase al Puesto: ---");
+                    panelActual.setBackground(COLOR_PANEL);
+                    lblTurnoActual.setForeground(COLOR_ROJO_TURNO);
+                }
+                return; // Cortamos la ejecución acá para este mensaje
             }
 
-            // Actualizamos la lista visual
+            // --- LÓGICA NORMAL (NUEVO O URGENTE) ---
+            String turnoAnterior = lblTurnoActual.getText();
+            String puestoAnteriorStr = lblPuesto.getText().replaceAll("\\D+","");
+
+            if (!turnoAnterior.equals("---") && !turnoAnterior.equals(dni)) {
+                historial.removeIf(s -> s.contains(turnoAnterior));
+                historial.addFirst("   " + turnoAnterior + "                    Puesto " + puestoAnteriorStr);
+                if (historial.size() > 4) historial.removeLast();
+            }
+
+            historial.removeIf(s -> s.contains(dni));
+
             historialModel.clear();
-            for (int i = 0; i < historial.size(); i++) {
-                historialModel.addElement("      " + (i + 1) + ". DNI: " + historial.get(i));
-            }
-        }
+            for (String s : historial) historialModel.addElement(s);
 
-        // Finalmente, actualizamos el número grande del turno actual
-        lblTurnoActual.setText(nuevoDni);
+            lblTurnoActual.setText(dni);
+            lblPuesto.setText("Diríjase al Puesto " + puesto);
+
+            if ("URGENTE".equals(tipo)) {
+                efectoParpadeo();
+            } else {
+                if (hiloParpadeo != null && hiloParpadeo.isAlive()) hiloParpadeo.interrupt();
+                panelActual.setBackground(COLOR_PANEL);
+                lblTurnoActual.setForeground(COLOR_ROJO_TURNO);
+            }
+        } catch (Exception e) {
+            System.out.println("Formato desconocido: " + mensaje);
+        }
+    }
+
+    private void efectoParpadeo() {
+        // Interrumpimos parpadeo anterior si es que alguien tocó re-llamar dos veces rápido
+        if (hiloParpadeo != null && hiloParpadeo.isAlive()) {
+            hiloParpadeo.interrupt();
+        }
+        hiloParpadeo = new Thread(() -> {
+            try {
+                for (int i = 0; i < 4; i++) {
+                    panelActual.setBackground(new Color(153, 27, 27));
+                    lblTurnoActual.setForeground(Color.WHITE);
+                    Thread.sleep(250);
+                    panelActual.setBackground(COLOR_PANEL);
+                    lblTurnoActual.setForeground(COLOR_ROJO_TURNO);
+                    Thread.sleep(250);
+                }
+            } catch (InterruptedException ignored) {
+                // Si lo interrumpen, vuelve al color normal
+                panelActual.setBackground(COLOR_PANEL);
+                lblTurnoActual.setForeground(COLOR_ROJO_TURNO);
+            }
+        });
+        hiloParpadeo.start();
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                new MonitorSala().setVisible(true);
-            }
-        });
+        SwingUtilities.invokeLater(() -> new MonitorSala().setVisible(true));
     }
 }
