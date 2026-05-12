@@ -15,12 +15,18 @@ public class Kiosco extends JFrame {
     private JLabel lblMensajeTitulo;
     private JLabel lblMensajeDetalle;
 
-    private static final String IP_OPERADOR = "127.0.0.1";
-    private static final int PUERTO_OPERADOR = 5000;
+    private String ipPrimario;
+    private String ipRespaldo;
+    private int puertoServidor;
 
     public Kiosco() {
+        // LLAMADA A CONFIGURACIÓN DINÁMICA
+        if (!configurarKiosco()) {
+            System.exit(0);
+        }
+
         setTitle("Terminal de Registro");
-        setSize(360, 600);
+        setSize(380, 750); // Agrandamos un poco la ventana para que entre el teclado
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
         setLocationRelativeTo(null);
@@ -35,7 +41,7 @@ public class Kiosco extends JFrame {
         lblTitulo.setFont(new Font("Segoe UI", Font.BOLD, 22));
         lblTitulo.setForeground(Color.WHITE);
 
-        JLabel lblSubtitulo = new JLabel("Ingrese su DNI para obtener un turno", SwingConstants.CENTER);
+        JLabel lblSubtitulo = new JLabel("Ingrese su DNI con el teclado en pantalla", SwingConstants.CENTER);
         lblSubtitulo.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         lblSubtitulo.setForeground(new Color(200, 220, 255));
 
@@ -47,49 +53,91 @@ public class Kiosco extends JFrame {
         JPanel panelCentro = new JPanel();
         panelCentro.setLayout(new BoxLayout(panelCentro, BoxLayout.Y_AXIS));
         panelCentro.setBackground(Color.WHITE);
-        panelCentro.setBorder(BorderFactory.createEmptyBorder(30, 20, 20, 20));
+        panelCentro.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         JLabel lblInstruccion = new JLabel("Ingrese su DNI");
         lblInstruccion.setFont(new Font("Segoe UI", Font.BOLD, 18));
         lblInstruccion.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JLabel lblAclaracion = new JLabel("Número de documento sin puntos");
-        lblAclaracion.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        lblAclaracion.setForeground(Color.GRAY);
-        lblAclaracion.setAlignmentX(Component.CENTER_ALIGNMENT);
-
         txtDni = new JTextField();
-        txtDni.setMaximumSize(new Dimension(300, 40));
-        txtDni.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+        txtDni.setMaximumSize(new Dimension(300, 50));
+        txtDni.setFont(new Font("Segoe UI", Font.BOLD, 24));
         txtDni.setHorizontalAlignment(JTextField.CENTER);
-        txtDni.setAlignmentX(Component.CENTER_ALIGNMENT); // <--- ALINEACIÓN CENTRADA
+        txtDni.setAlignmentX(Component.CENTER_ALIGNMENT);
+        txtDni.setEditable(false); // Lo hacemos no-editable con el teclado físico para forzar el uso del touch
+        txtDni.setBackground(new Color(248, 250, 252));
         txtDni.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
+                BorderFactory.createLineBorder(new Color(200, 200, 200), 2),
                 BorderFactory.createEmptyBorder(5, 10, 5, 10)
         ));
 
+        // --- NUEVO: TECLADO NUMÉRICO ---
+        JPanel panelTeclado = new JPanel(new GridLayout(4, 3, 10, 10));
+        panelTeclado.setBackground(Color.WHITE);
+        panelTeclado.setMaximumSize(new Dimension(300, 280));
+
+        String[] botonesTeclado = {
+                "1", "2", "3",
+                "4", "5", "6",
+                "7", "8", "9",
+                "C", "0", "<-"
+        };
+
+        for (String texto : botonesTeclado) {
+            JButton btn = new JButton(texto);
+            btn.setFont(new Font("Segoe UI", Font.BOLD, 22));
+            btn.setFocusPainted(false);
+            btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+            // Colores especiales para Borrar y Limpiar
+            if ("C".equals(texto) || "<-".equals(texto)) {
+                btn.setBackground(new Color(254, 226, 226));
+                btn.setForeground(new Color(220, 38, 38));
+            } else {
+                btn.setBackground(new Color(241, 245, 249));
+                btn.setForeground(new Color(30, 41, 59));
+            }
+
+            // Lógica al presionar un botón del teclado
+            btn.addActionListener(e -> {
+                String actual = txtDni.getText();
+                if ("C".equals(texto)) {
+                    txtDni.setText(""); // Limpiar todo
+                } else if ("<-".equals(texto)) {
+                    if (actual.length() > 0) {
+                        txtDni.setText(actual.substring(0, actual.length() - 1)); // Borrar el último
+                    }
+                } else {
+                    if (actual.length() < 9) { // Límite de largo de DNI
+                        txtDni.setText(actual + texto); // Agregar número
+                    }
+                }
+            });
+            panelTeclado.add(btn);
+        }
+
+        // --- BOTON SOLICITAR ---
         btnSolicitar = new JButton("Solicitar Turno");
-        btnSolicitar.setMaximumSize(new Dimension(300, 45));
-        btnSolicitar.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        btnSolicitar.setMaximumSize(new Dimension(300, 50));
+        btnSolicitar.setFont(new Font("Segoe UI", Font.BOLD, 18));
         btnSolicitar.setBackground(new Color(37, 99, 235));
         btnSolicitar.setForeground(Color.WHITE);
         btnSolicitar.setFocusPainted(false);
-        btnSolicitar.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         btnSolicitar.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnSolicitar.setAlignmentX(Component.CENTER_ALIGNMENT); // <--- ALINEACIÓN CENTRADA
+        btnSolicitar.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // Armado del panel central
-        panelCentro.add(Box.createRigidArea(new Dimension(0, 20)));
         panelCentro.add(lblInstruccion);
-        panelCentro.add(lblAclaracion);
-        panelCentro.add(Box.createRigidArea(new Dimension(0, 15)));
+        panelCentro.add(Box.createRigidArea(new Dimension(0, 10)));
         panelCentro.add(txtDni);
-        panelCentro.add(Box.createRigidArea(new Dimension(0, 20))); // Espacio entre el input y el botón
+        panelCentro.add(Box.createRigidArea(new Dimension(0, 20)));
+        panelCentro.add(panelTeclado); // Agregamos el teclado a la pantalla
+        panelCentro.add(Box.createRigidArea(new Dimension(0, 20)));
         panelCentro.add(btnSolicitar);
 
         add(panelCentro, BorderLayout.CENTER);
 
-        // --- PANEL DE MENSAJE (Oculto por defecto) ---
+        // --- PANEL DE MENSAJE ---
         panelMensaje = new JPanel(new GridLayout(2, 1));
         panelMensaje.setPreferredSize(new Dimension(360, 80));
         panelMensaje.setVisible(false);
@@ -114,16 +162,9 @@ public class Kiosco extends JFrame {
             return;
         }
 
-        long numeroDni = Long.parseLong(dni);
-        if (numeroDni < 500000 || numeroDni > 100000000) {
-            mostrarMensajeError("DNI Inválido", "Debe estar entre 500.000 y 100.000.000.");
-            return;
-        }
-
-        try {
-            Socket socket = new Socket(IP_OPERADOR, PUERTO_OPERADOR);
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        try (Socket socket = conectarConReintento(puertoServidor);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
             out.println(dni);
             String respuesta = in.readLine();
@@ -134,10 +175,6 @@ public class Kiosco extends JFrame {
             } else if ("DUPLICADO".equals(respuesta)) {
                 mostrarMensajeError("Turno Duplicado", "El DNI ya está esperando en la fila.");
             }
-
-            in.close();
-            out.close();
-            socket.close();
         } catch (Exception e) {
             mostrarMensajeError("Error de Conexión", "No se pudo conectar con el Servidor.");
         }
@@ -168,6 +205,36 @@ public class Kiosco extends JFrame {
         panelMensaje.setVisible(true);
     }
 
+    private boolean configurarKiosco() {
+        JTextField txtIpPrimario = new JTextField("127.0.0.1");
+        JTextField txtIpRespaldo = new JTextField("127.0.0.2");
+        JTextField txtPuerto = new JTextField("5000");
+
+        Object[] message = {
+                "IP Servidor Primario:", txtIpPrimario,
+                "IP Servidor Respaldo:", txtIpRespaldo,
+                "Puerto del Servidor para Kioscos:", txtPuerto
+        };
+
+        int option = JOptionPane.showConfirmDialog(null, message, "Configuración del Kiosco", JOptionPane.OK_CANCEL_OPTION);
+        if (option != JOptionPane.OK_OPTION) {
+            return false;
+        }
+
+        this.ipPrimario = txtIpPrimario.getText().trim();
+        this.ipRespaldo = txtIpRespaldo.getText().trim();
+        this.puertoServidor = Integer.parseInt(txtPuerto.getText().trim());
+        return true;
+    }
+
+    private Socket conectarConReintento(int puerto) throws Exception {
+        try {
+            return new Socket(ipPrimario, puerto);
+        } catch (Exception e) {
+            System.out.println("Fallo el Primario. Reintentando con Servidor de Respaldo...");
+            return new Socket(ipRespaldo, puerto);
+        }
+    }
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new Kiosco().setVisible(true));
     }

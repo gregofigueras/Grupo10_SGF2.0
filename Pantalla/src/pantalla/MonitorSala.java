@@ -19,7 +19,7 @@ public class MonitorSala extends JFrame {
     private LinkedList<String> historial;
     private Thread hiloParpadeo; // Controlamos el parpadeo para que no se pisen
 
-    private static final int PUERTO_ESCUCHA_OPERADOR = 6000;
+    private int puertoEscucha;
 
     // Paleta de colores oscuros
     private final Color COLOR_FONDO = new Color(15, 23, 42);
@@ -28,6 +28,10 @@ public class MonitorSala extends JFrame {
     private final Color COLOR_ROJO_TURNO = new Color(239, 68, 68);
 
     public MonitorSala() {
+        if (!configurarPantalla()) {
+            System.exit(0);
+        }
+
         historial = new LinkedList<>();
 
         setTitle("Pantalla de Turnos");
@@ -108,7 +112,9 @@ public class MonitorSala extends JFrame {
 
     private void iniciarServidorOperador() {
         Thread hiloServidor = new Thread(() -> {
-            try (ServerSocket serverSocket = new ServerSocket(PUERTO_ESCUCHA_OPERADOR)) {
+            // Usamos la variable 'puertoEscucha' que el usuario ingresó
+            try (ServerSocket serverSocket = new ServerSocket(puertoEscucha)) {
+                System.out.println("Monitor escuchando en el puerto " + puertoEscucha);
                 while (true) {
                     Socket socketOperador = serverSocket.accept();
                     BufferedReader in = new BufferedReader(new InputStreamReader(socketOperador.getInputStream()));
@@ -117,7 +123,9 @@ public class MonitorSala extends JFrame {
                     in.close();
                     socketOperador.close();
                 }
-            } catch (Exception e) { e.printStackTrace(); }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "Error: No se pudo abrir el puerto " + puertoEscucha);
+            }
         });
         hiloServidor.start();
     }
@@ -204,7 +212,23 @@ public class MonitorSala extends JFrame {
         });
         hiloParpadeo.start();
     }
+    private boolean configurarPantalla() {
+        JTextField txtPuerto = new JTextField("6000");
+        Object[] message = {"Puerto de Escucha para Notificaciones:", txtPuerto};
 
+        int option = JOptionPane.showConfirmDialog(null, message, "Configuración del Monitor", JOptionPane.OK_CANCEL_OPTION);
+        if (option != JOptionPane.OK_OPTION) {
+            return false;
+        }
+
+        try {
+            this.puertoEscucha = Integer.parseInt(txtPuerto.getText().trim());
+            return true;
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(null, "Puerto inválido.");
+            return false;
+        }
+    }
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new MonitorSala().setVisible(true));
     }

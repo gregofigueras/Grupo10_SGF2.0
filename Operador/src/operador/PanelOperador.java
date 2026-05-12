@@ -12,24 +12,27 @@ public class PanelOperador extends JFrame {
     private JLabel lblTurnoActual;
     private JButton btnLlamar;
     private JButton btnRellamar;
-    private int idPuesto;
 
     private Timer cooldownTimer;
     private int segundosRestantes;
 
-    private static final String IP_SERVIDOR = "127.0.0.1";
-    private static final int PUERTO_SERVIDOR = 5001;
+    private String ipPrimario;
+    private String ipRespaldo;
+    private int puertoServidor;
+    private int idPuesto;
 
     public PanelOperador() {
-        String input = JOptionPane.showInputDialog(null, "Ingrese el número de este Puesto:", "Configuración", JOptionPane.QUESTION_MESSAGE);
-        try { idPuesto = Integer.parseInt(input); } catch (Exception e) { idPuesto = 1; }
+        // 1. Pedimos la configuración dinámica y validamos el puesto con el servidor
+        if (!configurarPuesto()) {
+            System.exit(0);
+        }
 
         setTitle("Puesto de Atención #" + idPuesto);
         setSize(450, 550);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
         setLocationRelativeTo(null);
-        getContentPane().setBackground(new Color(243, 244, 246)); // Fondo gris claro
+        getContentPane().setBackground(new Color(243, 244, 246));
 
         // --- HEADER OSCURO ---
         JPanel panelHeader = new JPanel(new BorderLayout());
@@ -48,7 +51,6 @@ public class PanelOperador extends JFrame {
         panelCentro.setBackground(new Color(243, 244, 246));
         panelCentro.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // TARJETA: Turno Actual
         JPanel cardTurno = crearTarjeta();
         JLabel lblAtencion = new JLabel("Turno en atención:");
         lblAtencion.setFont(new Font("Segoe UI", Font.PLAIN, 14));
@@ -60,18 +62,16 @@ public class PanelOperador extends JFrame {
         cardTurno.add(lblAtencion);
         cardTurno.add(lblTurnoActual);
 
-        // BOTON LILA GIGANTE: Llamar Siguiente
         btnLlamar = new JButton("Llamar Siguiente");
         btnLlamar.setMaximumSize(new Dimension(400, 60));
         btnLlamar.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        btnLlamar.setBackground(new Color(139, 92, 246)); // Lila/Purpura
+        btnLlamar.setBackground(new Color(139, 92, 246));
         btnLlamar.setForeground(Color.WHITE);
         btnLlamar.setFocusPainted(false);
         btnLlamar.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        // TARJETA: Re-notificación
         JPanel cardRellamar = crearTarjeta();
-        cardRellamar.setBackground(new Color(254, 243, 199)); // Amarillito claro
+        cardRellamar.setBackground(new Color(254, 243, 199));
         cardRellamar.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(252, 211, 77), 1),
                 BorderFactory.createEmptyBorder(15, 15, 15, 15)
@@ -82,7 +82,7 @@ public class PanelOperador extends JFrame {
 
         btnRellamar = new JButton("Re-notificar (Máx 3)");
         btnRellamar.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        btnRellamar.setBackground(new Color(220, 38, 38)); // Rojo
+        btnRellamar.setBackground(new Color(220, 38, 38));
         btnRellamar.setForeground(Color.WHITE);
         btnRellamar.setFocusPainted(false);
         btnRellamar.setEnabled(false);
@@ -91,7 +91,6 @@ public class PanelOperador extends JFrame {
         cardRellamar.add(Box.createRigidArea(new Dimension(0, 10)));
         cardRellamar.add(btnRellamar);
 
-        // Armado del centro
         panelCentro.add(cardTurno);
         panelCentro.add(Box.createRigidArea(new Dimension(0, 20)));
         panelCentro.add(btnLlamar);
@@ -103,6 +102,17 @@ public class PanelOperador extends JFrame {
         // Eventos
         btnLlamar.addActionListener(e -> enviarComando("LLAMAR_" + idPuesto));
         btnRellamar.addActionListener(e -> enviarComando("RELLAMAR_" + idPuesto));
+
+        // 2. TÁCTICA DE RECUPERACIÓN: Notificar al servidor al cerrar para liberar el puesto
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                try (Socket socket = conectarConReintento(puertoServidor);
+                     PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+                    out.println("DESCONECTAR_" + idPuesto);
+                } catch (Exception ignored) {}
+            }
+        });
     }
 
     private JPanel crearTarjeta() {
@@ -119,7 +129,8 @@ public class PanelOperador extends JFrame {
     }
 
     private void enviarComando(String comando) {
-        try (Socket socket = new Socket(IP_SERVIDOR, PUERTO_SERVIDOR);
+        // Cambiamos 'new Socket' por 'conectarConReintento' y usamos 'puertoServidor'
+        try (Socket socket = conectarConReintento(puertoServidor);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
              BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
@@ -134,13 +145,13 @@ public class PanelOperador extends JFrame {
                 JOptionPane.showMessageDialog(this, "El cliente no se presentó tras 3 intentos. Turno cancelado.");
                 lblTurnoActual.setText("Nadie");
                 resetearBotonRellamar();
-            } else if (respuesta.startsWith("OK")) {
+            } else if (respuesta != null && respuesta.startsWith("OK")) {
                 String dni = respuesta.split("_")[1];
                 lblTurnoActual.setText("DNI: " + dni);
                 iniciarCooldownRellamado();
             }
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Error de red.");
+            JOptionPane.showMessageDialog(this, "Error de red: No se pudo comunicar con el servidor.");
         }
     }
 
@@ -169,7 +180,58 @@ public class PanelOperador extends JFrame {
         btnRellamar.setText("Re-notificar");
         btnRellamar.setEnabled(false);
     }
+    private Socket conectarConReintento(int puerto) throws Exception {
+        try {
+            return new Socket(ipPrimario, puerto);
+        } catch (Exception e) {
+            System.out.println("Fallo el Servidor Primario. Reintentando con Servidor de Respaldo...");
+            return new Socket(ipRespaldo, puerto);
+        }
+    }
+    private boolean configurarPuesto() {
+        while (true) {
+            JTextField txtIpPrimario = new JTextField("127.0.0.1");
+            JTextField txtIpRespaldo = new JTextField("127.0.0.2");
+            JTextField txtPuerto = new JTextField("5001");
+            JTextField txtPuesto = new JTextField("1");
 
+            Object[] message = {
+                    "IP Servidor Primario:", txtIpPrimario,
+                    "IP Servidor Respaldo:", txtIpRespaldo,
+                    "Puerto del Servidor:", txtPuerto,
+                    "Número de Puesto:", txtPuesto
+            };
+
+            int option = JOptionPane.showConfirmDialog(null, message, "Configuración del Puesto", JOptionPane.OK_CANCEL_OPTION);
+            if (option != JOptionPane.OK_OPTION) {
+                return false; // El usuario canceló o cerró la ventana
+            }
+
+            try {
+                this.ipPrimario = txtIpPrimario.getText().trim();
+                this.ipRespaldo = txtIpRespaldo.getText().trim();
+                this.puertoServidor = Integer.parseInt(txtPuerto.getText().trim());
+                this.idPuesto = Integer.parseInt(txtPuesto.getText().trim());
+
+                // Intentamos registrar el puesto en el servidor
+                try (Socket socket = conectarConReintento(this.puertoServidor);
+                     PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+
+                    out.println("REGISTRAR_" + this.idPuesto);
+                    String respuesta = in.readLine();
+
+                    if ("DUPLICADO".equals(respuesta)) {
+                        JOptionPane.showMessageDialog(null, "Error: El Puesto #" + this.idPuesto + " ya está conectado al Servidor. Elija otro número.", "Puesto Ocupado", JOptionPane.ERROR_MESSAGE);
+                    } else if ("OK".equals(respuesta)) {
+                        return true; // Registro exitoso
+                    }
+                }
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(null, "Error de red: No se pudo conectar con el servidor. Verifique IP y Puerto.", "Error de Conexión", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new PanelOperador().setVisible(true));
     }
