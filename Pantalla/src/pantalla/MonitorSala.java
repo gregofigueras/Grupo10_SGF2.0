@@ -121,8 +121,8 @@ public class MonitorSala extends JFrame {
             List<Turno> llamados = historialDAO.obtenerUltimosLlamados(4);
 
             historial.clear();
-            for (int i = llamados.size() - 1; i >= 0; i--) {
-                Turno turno = llamados.get(i);
+            // Queremos mostrar el historial con el más reciente arriba
+            for (Turno turno : llamados) {
                 historial.addFirst(formatearEntradaHistorial(turno));
             }
 
@@ -200,6 +200,7 @@ public class MonitorSala extends JFrame {
 
             if (!turnoAnterior.equals("---") && !turnoAnterior.equals(dni)) {
                 historial.removeIf(s -> s.contains(turnoAnterior));
+                // Insertamos el turno anterior en la cima del historial (más reciente arriba)
                 historial.addFirst("   " + turnoAnterior + "                    Puesto " + puestoAnteriorStr);
                 if (historial.size() > 4)
                     historial.removeLast();
