@@ -1,6 +1,6 @@
 # Grupo10_SGF2.0
 
-Proyecto: Sistema de Gestión de Turnos (SGF) - Versión educativa 2.0
+Proyecto: Sistema de Gestión de Turnos (SGF) - Iteración 4
 
 ## Integrantes
 
@@ -64,5 +64,3 @@ Orden recomendado para pruebas locales: primero `ServidorCentral`, luego `Pantal
 - Para forzar que VS Code reconozca la dependencia de Gson, recargar la ventana o reiniciar el servidor Java puede ser necesario.
 
 ---
-
-Generado automáticamente por el equipo. Si querés que agregue secciones adicionales (diagramas, instrucciones de build, scripts), decímelo y lo incorporo.
