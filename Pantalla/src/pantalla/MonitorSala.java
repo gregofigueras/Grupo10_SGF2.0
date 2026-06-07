@@ -1,11 +1,16 @@
 package pantalla;
 
+import modelo.Turno;
+import persistencia.IHistorialLlamadosDAO;
+import persistencia.JSONFactory;
+
 import javax.swing.*;
 import java.awt.*;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
 import java.util.LinkedList;
 
 public class MonitorSala extends JFrame {
@@ -56,8 +61,7 @@ public class MonitorSala extends JFrame {
         panelActual.setBackground(COLOR_PANEL);
         panelActual.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(COLOR_ROJO_TURNO, 2),
-                BorderFactory.createEmptyBorder(30, 20, 30, 20)
-        ));
+                BorderFactory.createEmptyBorder(30, 20, 30, 20)));
 
         JLabel lblSubtitulo = new JLabel("Turno Llamado", SwingConstants.LEFT);
         lblSubtitulo.setFont(new Font("Segoe UI", Font.PLAIN, 18));
@@ -107,7 +111,36 @@ public class MonitorSala extends JFrame {
 
         add(panelHistorial, BorderLayout.CENTER);
 
+        cargarHistorialInicial();
         iniciarServidorOperador();
+    }
+
+    private void cargarHistorialInicial() {
+        try {
+            IHistorialLlamadosDAO historialDAO = new JSONFactory().crearHistorialLlamadosDAO();
+            List<Turno> llamados = historialDAO.obtenerUltimosLlamados(4);
+
+            historial.clear();
+            for (int i = llamados.size() - 1; i >= 0; i--) {
+                Turno turno = llamados.get(i);
+                historial.addFirst(formatearEntradaHistorial(turno));
+            }
+
+            actualizarHistorialVisible();
+        } catch (Exception e) {
+            historial.clear();
+            historialModel.clear();
+        }
+    }
+
+    private String formatearEntradaHistorial(Turno turno) {
+        return "   " + turno.getDniCliente() + "                    Puesto " + turno.getPuestoAtencion();
+    }
+
+    private void actualizarHistorialVisible() {
+        historialModel.clear();
+        for (String s : historial)
+            historialModel.addElement(s);
     }
 
     private void iniciarServidorOperador() {
@@ -119,7 +152,8 @@ public class MonitorSala extends JFrame {
                     Socket socketOperador = serverSocket.accept();
                     BufferedReader in = new BufferedReader(new InputStreamReader(socketOperador.getInputStream()));
                     String mensaje = in.readLine();
-                    if (mensaje != null) SwingUtilities.invokeLater(() -> procesarMensaje(mensaje));
+                    if (mensaje != null)
+                        SwingUtilities.invokeLater(() -> procesarMensaje(mensaje));
                     in.close();
                     socketOperador.close();
                 }
@@ -143,14 +177,15 @@ public class MonitorSala extends JFrame {
                 historial.removeIf(s -> s.contains(dni));
                 // Lo mandamos al historial con la etiqueta de EXPIRADO
                 historial.addFirst("   " + dni + "                    EXPIRADO");
-                if (historial.size() > 4) historial.removeLast();
+                if (historial.size() > 4)
+                    historial.removeLast();
 
-                historialModel.clear();
-                for (String s : historial) historialModel.addElement(s);
+                actualizarHistorialVisible();
 
                 // Si el turno que expiró es el que está en el recuadro grande, lo limpiamos
                 if (lblTurnoActual.getText().equals(dni)) {
-                    if (hiloParpadeo != null && hiloParpadeo.isAlive()) hiloParpadeo.interrupt();
+                    if (hiloParpadeo != null && hiloParpadeo.isAlive())
+                        hiloParpadeo.interrupt();
                     lblTurnoActual.setText("---");
                     lblPuesto.setText("Diríjase al Puesto: ---");
                     panelActual.setBackground(COLOR_PANEL);
@@ -161,18 +196,18 @@ public class MonitorSala extends JFrame {
 
             // --- LÓGICA NORMAL (NUEVO O URGENTE) ---
             String turnoAnterior = lblTurnoActual.getText();
-            String puestoAnteriorStr = lblPuesto.getText().replaceAll("\\D+","");
+            String puestoAnteriorStr = lblPuesto.getText().replaceAll("\\D+", "");
 
             if (!turnoAnterior.equals("---") && !turnoAnterior.equals(dni)) {
                 historial.removeIf(s -> s.contains(turnoAnterior));
                 historial.addFirst("   " + turnoAnterior + "                    Puesto " + puestoAnteriorStr);
-                if (historial.size() > 4) historial.removeLast();
+                if (historial.size() > 4)
+                    historial.removeLast();
             }
 
             historial.removeIf(s -> s.contains(dni));
 
-            historialModel.clear();
-            for (String s : historial) historialModel.addElement(s);
+            actualizarHistorialVisible();
 
             lblTurnoActual.setText(dni);
             lblPuesto.setText("Diríjase al Puesto " + puesto);
@@ -180,7 +215,8 @@ public class MonitorSala extends JFrame {
             if ("URGENTE".equals(tipo)) {
                 efectoParpadeo();
             } else {
-                if (hiloParpadeo != null && hiloParpadeo.isAlive()) hiloParpadeo.interrupt();
+                if (hiloParpadeo != null && hiloParpadeo.isAlive())
+                    hiloParpadeo.interrupt();
                 panelActual.setBackground(COLOR_PANEL);
                 lblTurnoActual.setForeground(COLOR_ROJO_TURNO);
             }
@@ -190,7 +226,8 @@ public class MonitorSala extends JFrame {
     }
 
     private void efectoParpadeo() {
-        // Interrumpimos parpadeo anterior si es que alguien tocó re-llamar dos veces rápido
+        // Interrumpimos parpadeo anterior si es que alguien tocó re-llamar dos veces
+        // rápido
         if (hiloParpadeo != null && hiloParpadeo.isAlive()) {
             hiloParpadeo.interrupt();
         }
@@ -212,11 +249,13 @@ public class MonitorSala extends JFrame {
         });
         hiloParpadeo.start();
     }
+
     private boolean configurarPantalla() {
         JTextField txtPuerto = new JTextField("6000");
-        Object[] message = {"Puerto de Escucha para Notificaciones:", txtPuerto};
+        Object[] message = { "Puerto de Escucha para Notificaciones:", txtPuerto };
 
-        int option = JOptionPane.showConfirmDialog(null, message, "Configuración del Monitor", JOptionPane.OK_CANCEL_OPTION);
+        int option = JOptionPane.showConfirmDialog(null, message, "Configuración del Monitor",
+                JOptionPane.OK_CANCEL_OPTION);
         if (option != JOptionPane.OK_OPTION) {
             return false;
         }
@@ -229,6 +268,7 @@ public class MonitorSala extends JFrame {
             return false;
         }
     }
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new MonitorSala().setVisible(true));
     }
