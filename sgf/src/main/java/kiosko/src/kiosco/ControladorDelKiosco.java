@@ -6,10 +6,36 @@ import Globales.Configuracion;
 
 import java.awt.event.ActionEvent;
 
+/**
+ * Controlador del kiosco que medía la interacción entre la vista de cliente
+ * y el modelo `Kiosco`.
+ *
+ * <p>
+ * Implementa `ActionListener` para recibir eventos generados por la
+ * interfaz de usuario (por ejemplo, solicitudes de turno). La lógica de
+ * procesamiento de turnos se delega al modelo `Kiosco`.
+ * </p>
+ */
 public class ControladorDelKiosco implements ActionListener {
+    /**
+     * Referencia a la vista que interactúa con el cliente (entrada/salida).
+     */
     private InterfazDelCliente vista;
+
+    /**
+     * Modelo que contiene la lógica de negocio del kiosco (gestión de turnos).
+     */
     private Kiosco modelo;
 
+    /**
+     * Crea e inicializa el controlador.
+     *
+     * <p>
+     * Construye la vista `VistaKiosco`, obtiene la configuración de la misma
+     * y crea el modelo `Kiosco` con dicha configuración. Finalmente registra
+     * este controlador como `ActionListener` de la vista.
+     * </p>
+     */
     public ControladorDelKiosco() {
         Configuracion config;
         this.vista = new VistaKiosco();

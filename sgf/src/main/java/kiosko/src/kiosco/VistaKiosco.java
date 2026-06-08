@@ -24,6 +24,16 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 
+/**
+ * Implementación de la interfaz de cliente para el kiosco.
+ *
+ * <p>
+ * Provee una pantalla con un teclado numérico en pantalla, validación de
+ * DNI y métodos para mostrar mensajes al usuario. Esta clase maneja la
+ * interacción visual únicamente; el procesamiento de turnos se delega al
+ * controlador/modelo.
+ * </p>
+ */
 public class VistaKiosco extends JFrame implements InterfazDelCliente {
     private JTextField txtDni;
     private JButton btnSolicitar;
@@ -31,6 +41,10 @@ public class VistaKiosco extends JFrame implements InterfazDelCliente {
     private JLabel lblMensajeTitulo;
     private JLabel lblMensajeDetalle;
 
+    /**
+     * Construye la interfaz gráfica del kiosco, creando y organizando los
+     * componentes (teclado, campo de DNI, botón y panel de mensajes).
+     */
     public VistaKiosco() {
         setTitle("Terminal de Registro");
         setSize(380, 750); // Agrandamos un poco la ventana para que entre el teclado
@@ -162,6 +176,10 @@ public class VistaKiosco extends JFrame implements InterfazDelCliente {
         this.setVisible(true);
     }
 
+    /**
+     * Valida el contenido del campo DNI y activa/desactiva el botón de
+     * solicitud según corresponda.
+     */
     private void validarDNI() {
         String dni = txtDni.getText().trim();
 
