@@ -40,6 +40,9 @@ public class ControladorDelKiosco implements ActionListener {
         Configuracion config;
         this.vista = new VistaKiosco();
         config = vista.getConfiguracion();
+        if (config == null) {
+            System.exit(0);
+        }
         this.modelo = new Kiosco(config);
         this.vista.setActionListener(this);
     }

@@ -18,7 +18,7 @@ import java.net.Socket;
  * vista; contiene la lógica de envío/recepción de mensajes al servidor.
  * </p>
  */
-public class Kiosco extends JFrame {
+public class Kiosco {
 
     /** Configuración con IPs y puerto para conectarse al servidor. */
     private Configuracion config;
