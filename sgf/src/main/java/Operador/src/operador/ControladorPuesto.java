@@ -10,10 +10,27 @@ import javax.swing.JTextField;
 
 import Globales.ConfiguracionFactory;
 
+/**
+ * Controlador del puesto de atención. Se encarga de manejar la lógica de
+ * negocio del puesto, interactuar con el modelo (Puesto) y actualizar la vista
+ * (PanelOperador). Implementa ActionListener para responder a los eventos de
+ * los botones y WindowListener para manejar el cierre de la ventana y asegurar
+ * una desconexión limpia del servidor. En el constructor, solicita la
+ * configuración al usuario, intenta conectar con el servidor y maneja los casos
+ * de error. Si la conexión es exitosa, inicializa la interfaz gráfica y
+ * establece las relaciones necesarias entre el modelo (Puesto) y la vista
+ * (PanelOperador).
+ */
 public class ControladorPuesto implements ActionListener, WindowListener {
     private PanelOperador panel;
     private Puesto puesto;
 
+    /**
+     * Constructor del controlador del puesto de atención. Se encarga de solicitar
+     * la configuración al usuario, intentar conectar con el servidor y manejar los
+     * casos de error. Si la conexión es exitosa, inicializa la interfaz gráfica y
+     * establece las relaciones necesarias entre el modelo (Puesto)
+     */
     public ControladorPuesto() {
         String respuesta;
         this.puesto = new Puesto();
@@ -77,6 +94,13 @@ public class ControladorPuesto implements ActionListener, WindowListener {
 
     }
 
+    /**
+     * Solicita al usuario la configuración del puesto de atención a través de un
+     * diálogo de entrada.
+     * 
+     * @return Objeto ConfiguracionPuesto con los datos ingresados por el usuario, o
+     *         null si el usuario cancela la operación.
+     */
     private ConfiguracionPuesto getConfiguracionPuesto() {
         JTextField txtIpPrimario = new JTextField("127.0.0.1");
         JTextField txtIpRespaldo = new JTextField("127.0.0.2");

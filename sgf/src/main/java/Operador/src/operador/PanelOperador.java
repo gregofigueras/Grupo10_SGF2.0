@@ -7,6 +7,19 @@ import java.awt.event.ActionListener;
 import java.util.Observable;
 import java.util.Observer;
 
+/**
+ * PanelOperador es la clase que representa la interfaz gráfica del puesto de
+ * atención. Esta clase implementa la interfaz InterfazDeTrabajo para definir
+ * los métodos necesarios para la interacción con el controlador, y también
+ * implementa Observer para recibir actualizaciones del modelo (Puesto) y
+ * reflejarlas en la interfaz gráfica. El diseño de la interfaz se centra en
+ * mostrar claramente el turno actual que está siendo atendido, con botones para
+ * llamar al siguiente turno y para re-notificar al turno actual, siguiendo un
+ * estilo visual moderno y limpio. La clase se encarga de actualizar el estado
+ * de los botones y el turno mostrado en función de las notificaciones recibidas
+ * del modelo, permitiendo una interacción fluida entre el usuario (operador),
+ * el controlador y el modelo.
+ */
 @SuppressWarnings("deprecation")
 public class PanelOperador extends JFrame implements InterfazDeTrabajo, Observer {
 
@@ -14,6 +27,14 @@ public class PanelOperador extends JFrame implements InterfazDeTrabajo, Observer
     private JButton btnLlamar;
     private JButton btnRellamar;
 
+    /**
+     * Constructor del PanelOperador. Inicializa la interfaz gráfica del puesto de
+     * atención, configurando el diseño, los componentes y los estilos visuales. El
+     * 
+     * @param idPuesto El ID del puesto de atención, que se muestra en el título de
+     *                 la ventana y en el encabezado de la interfaz para identificar
+     *                 claramente el puesto al operador.
+     */
     public PanelOperador(int idPuesto) {
 
         setTitle("Puesto de Atención #" + idPuesto);
@@ -93,6 +114,16 @@ public class PanelOperador extends JFrame implements InterfazDeTrabajo, Observer
         this.setVisible(true);
     }
 
+    /**
+     * Crea una tarjeta de información con un diseño moderno y limpio, utilizada
+     * para mostrar el turno actual y la sección de re-notificación. Esta tarjeta
+     * tiene un fondo blanco, borde gris claro y un diseño vertical con espacio
+     * entre los elementos, alineados a la izquierda para mejorar la legibilidad. Se
+     * utiliza para encapsular la información de manera clara y visualmente
+     * atractiva dentro de la interfaz del operador.
+     * 
+     * @return Un JPanel configurado como una tarjeta de información.
+     */
     private JPanel crearTarjeta() {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
