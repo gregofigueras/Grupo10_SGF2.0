@@ -1,5 +1,7 @@
 package Globales;
 
+import Operador.src.operador.ConfiguracionPuesto;
+
 /**
  * Fábrica para crear objetos de tipo Configuración<br>
  * Consiste de un único método estático que recibe los parámetros necesarios
@@ -22,5 +24,10 @@ public class ConfiguracionFactory {
      */
     public static Configuracion crearConfiguracion(String ipPrimario, String ipRespaldo, int puertoServidor) {
         return new Configuracion(ipPrimario, ipRespaldo, puertoServidor);
+    }
+
+    public static ConfiguracionPuesto crearConfiguracionPuesto(String ipPrimario, String ipRespaldo, int puertoServidor,
+            int idPuesto) {
+        return new ConfiguracionPuesto(ipPrimario, ipRespaldo, puertoServidor, idPuesto);
     }
 }
