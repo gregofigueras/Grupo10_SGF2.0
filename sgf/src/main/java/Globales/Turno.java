@@ -101,4 +101,9 @@ public class Turno {
     public void incrementarIntentos() {
         this.intentosLlamado++;
     }
+
+    @Override
+    public String toString() {
+        return "   " + dniCliente + "                    Puesto " + puestoAtencion;
+    }
 }
