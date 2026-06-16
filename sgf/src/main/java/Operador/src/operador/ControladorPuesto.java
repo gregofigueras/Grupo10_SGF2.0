@@ -81,10 +81,12 @@ public class ControladorPuesto implements ActionListener, WindowListener {
             JOptionPane.showMessageDialog(this.panel, "No hay clientes pendientes en la fila.");
             this.panel.setTurnoActual("Nadie");
             this.panel.resetearBotonRellamar();
+            this.puesto.detenerCooldownTimer();
         } else if ("DESCARTADO".equals(respuesta)) {
             JOptionPane.showMessageDialog(this.panel, "El cliente no se presentó tras 3 intentos. Turno cancelado.");
             this.panel.setTurnoActual("Nadie");
             this.panel.resetearBotonRellamar();
+            this.puesto.detenerCooldownTimer();
         } else if (respuesta.startsWith("OK")) {
             String dni = respuesta.split("_")[1];
             this.panel.setTurnoActual("DNI: " + dni);
