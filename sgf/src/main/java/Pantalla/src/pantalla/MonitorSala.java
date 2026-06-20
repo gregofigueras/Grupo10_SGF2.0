@@ -11,6 +11,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
 import java.util.Observable;
+import java.util.regex.PatternSyntaxException;
 import java.util.LinkedList;
 
 /**
@@ -24,7 +25,7 @@ import java.util.LinkedList;
 @SuppressWarnings("deprecation") // Para Observable, que es lo que nos pidieron usar
 public class MonitorSala extends Observable {
     private Turno turnoActual;
-    private LinkedList<String> historial;
+    private LinkedList<Turno> historial;
     private int puertoEscucha;
 
     /**
@@ -55,7 +56,7 @@ public class MonitorSala extends Observable {
      *         cliente y el puesto de atención o el estado de expirado si el turno
      *         fue descartado por expirar.
      */
-    public LinkedList<String> getHistorial() {
+    public LinkedList<Turno> getHistorial() {
         return historial;
     }
 
@@ -79,7 +80,7 @@ public class MonitorSala extends Observable {
             historial.clear();
             // Queremos mostrar el historial con el más reciente arriba
             for (Turno turno : llamados) {
-                historial.addFirst(turno.toString());
+                historial.addFirst(turno);
             }
 
             setChanged();
@@ -150,38 +151,28 @@ public class MonitorSala extends Observable {
             // NUEVA LÓGICA: Si el servidor avisa que el turno fue descartado (Expiró)
             if ("DESCARTADO".equals(tipo)) {
                 // Lo borramos si ya estaba en el historial (por algún motivo)
-                historial.removeIf(s -> s.contains(dni));
+                historial.removeIf(s -> s.getDniCliente().equals(dni));
                 // Lo mandamos al historial con la etiqueta de EXPIRADO
-                historial.addFirst("   " + dni + "                    EXPIRADO");
+                historial.addFirst(new Turno(dni, true));
                 if (historial.size() > 4)
                     historial.removeLast();
-
+                if (turnoActual != null && turnoActual.getDniCliente().equals(dni)) {
+                    turnoActual = null;
+                }
             } else {
-                // --- LÓGICA NORMAL (NUEVO O URGENTE) ---
-                String turnoAnterior = turnoActual != null ? turnoActual.toString() : "---";
-                String puestoAnteriorStr = turnoActual != null ? String.valueOf(turnoActual.getPuestoAtencion())
-                        : "---";
-
-                if (!turnoAnterior.equals("---") && !turnoAnterior.equals(dni)) {
-                    historial.removeIf(s -> s.contains(turnoAnterior));
-                    // Insertamos el turno anterior en la cima del historial (más reciente arriba)
-                    historial.addFirst("   " + turnoAnterior + "                    Puesto " + puestoAnteriorStr);
-                    if (historial.size() > 4)
-                        historial.removeLast();
-                }
-
-                historial.removeIf(s -> s.contains(dni));
-
-                if (turnoActual == null) {
-                    turnoActual = new Turno(dni);
-                } else {
-                    turnoActual.setDniCliente(dni);
-                }
+                Turno turnoAnterior = turnoActual;
+                if (turnoAnterior != null && !turnoAnterior.getDniCliente().equals(dni))
+                    historial.addFirst(turnoAnterior);
+                turnoActual = new Turno(dni);
+                turnoActual.setDniCliente(dni);
                 turnoActual.setPuestoAtencion(Integer.parseInt(puesto));
+                historial.removeIf(s -> s.equals(turnoActual));
+                if (historial.size() > 4)
+                    historial.removeLast();
             }
             setChanged();
             notifyObservers(tipo);
-        } catch (Exception e) {
+        } catch (PatternSyntaxException e) {
             System.out.println("Formato desconocido: " + mensaje);
         }
 

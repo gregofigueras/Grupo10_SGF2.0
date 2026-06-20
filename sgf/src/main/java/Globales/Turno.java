@@ -33,6 +33,22 @@ public class Turno {
      */
     private int intentosLlamado; // Para la re-notificación (máximo 3)
 
+    private boolean expirado; // Para marcar un turno como expirado (descartado)
+
+    /**
+     * Constructor para crear un turno marcado como expirado.
+     *
+     * @param dniCliente DNI del cliente asociado al turno
+     * @param expirado   debe ser {@code true} para indicar que el turno es
+     *                   expirado
+     */
+    public Turno(String dniCliente, boolean expirado) {
+        this.dniCliente = dniCliente;
+        this.intentosLlamado = 0; // Inicia en 0 intentos
+        this.puestoAtencion = -1; // -1 significa que aún no fue asignado a un puesto
+        this.expirado = expirado;
+    }
+
     /**
      * Crea un nuevo turno para el cliente con el DNI indicado.
      *
@@ -42,6 +58,7 @@ public class Turno {
         this.dniCliente = dniCliente;
         this.intentosLlamado = 0; // Inicia en 0 intentos
         this.puestoAtencion = -1; // -1 significa que aún no fue asignado a un puesto
+        this.expirado = false; // Por defecto, el turno no es expirado
     }
 
     /**
@@ -104,6 +121,14 @@ public class Turno {
 
     @Override
     public String toString() {
-        return "   " + dniCliente + "                    Puesto " + puestoAtencion;
+        return this.expirado ? "   " + dniCliente + "                    EXPIRADO"
+                : "   " + dniCliente + "                    Puesto " + puestoAtencion;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        Turno otro = (Turno) obj;
+        return otro != null && this.dniCliente.equals(otro.dniCliente);
+    }
+
 }

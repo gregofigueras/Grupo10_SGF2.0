@@ -193,18 +193,20 @@ public class VistaMonitor extends JFrame implements InterfazPublico, Observer {
      * el puesto al que debía dirigirse, y si el turno expiró o fue llamado
      * normalmente.
      * 
-     * @param historial Lista de turnos en formato String que representa el
-     *                  historial de llamados. Cada entrada debe contener el número
-     *                  de turno, el puesto, y el estado (expirado o llamado).
+     * @param historial Lista de turnos que representa el historial de llamados.
+     *                  Cada turno debe tener su estado (expirado o no) para
+     *                  mostrarlo correctamente.
      */
-    private void actualizarHistorialVisible(LinkedList<String> historial) {
+    private void actualizarHistorialVisible(LinkedList<Turno> historial) {
         historialModel.clear();
-        for (String s : historial)
-            historialModel.addElement(s);
+        for (Turno turno : historial) {
+            historialModel.addElement(turno.toString());
+        }
     }
 
     @Override
     public void update(Observable o, Object arg) {
+        MonitorSala monitor = (MonitorSala) o;
         if (arg instanceof IOException) {
             JOptionPane.showMessageDialog(this,
                     "Error de conexión con el servidor: " + ((IOException) arg).getMessage(),
@@ -214,7 +216,7 @@ public class VistaMonitor extends JFrame implements InterfazPublico, Observer {
             switch (mensaje) {
                 case "DESCARTADO":
                     // Si el turno que expiró es el actual, lo limpiamos
-                    Turno turnoActual = ((MonitorSala) o).getTurnoActual();
+                    Turno turnoActual = monitor.getTurnoActual();
                     String dni = turnoActual != null ? turnoActual.getDniCliente() : "";
                     agregarTurnoAHistorial(true);
                     if (lblTurnoActual.getText().equals(dni)) {
@@ -227,20 +229,26 @@ public class VistaMonitor extends JFrame implements InterfazPublico, Observer {
                     }
                     break;
                 case "URGENTE":
+                    if (!lblTurnoActual.getText().equals(monitor.getDniActual())) {
+                        actualizarHistorialVisible(monitor.getHistorial());
+                        Turno turnoUrgente = monitor.getTurnoActual();
+                        lblTurnoActual.setText(turnoUrgente.getDniCliente());
+                        lblPuesto.setText("Diríjase al Puesto: " + turnoUrgente.getPuestoAtencion());
+                    }
                     efectoParpadeo();
                     break;
-                default:
+                default: // "NUEVO"
                     agregarTurnoAHistorial(false);
                     if (hiloParpadeo != null && hiloParpadeo.isAlive())
                         hiloParpadeo.interrupt();
                     panelActual.setBackground(COLOR_PANEL);
                     lblTurnoActual.setForeground(COLOR_ROJO_TURNO);
-                    lblTurnoActual.setText(((MonitorSala) o).getDniActual());
-                    lblPuesto.setText("Diríjase al Puesto: " + ((MonitorSala) o).getPuestoActual());
+                    lblTurnoActual.setText(monitor.getDniActual());
+                    lblPuesto.setText("Diríjase al Puesto: " + monitor.getPuestoActual());
                     break;
             }
         } else {
-            actualizarHistorialVisible(((MonitorSala) o).getHistorial());
+            actualizarHistorialVisible(monitor.getHistorial());
         }
     }
 
