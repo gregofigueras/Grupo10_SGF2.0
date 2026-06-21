@@ -21,6 +21,7 @@ public class ControladorPuesto implements ActionListener, WindowListener {
     private PanelOperador panel;
     private final Puesto puesto;
 
+    @SuppressWarnings("null")
     public ControladorPuesto() {
         this.puesto = new Puesto();
         ConfiguracionPuesto config;
@@ -130,8 +131,7 @@ public class ControladorPuesto implements ActionListener, WindowListener {
                 null,
                 message,
                 "Configuración del Puesto",
-                JOptionPane.OK_CANCEL_OPTION
-        );
+                JOptionPane.OK_CANCEL_OPTION);
 
         if (option != JOptionPane.OK_OPTION) {
             return null;
@@ -144,21 +144,20 @@ public class ControladorPuesto implements ActionListener, WindowListener {
             int idPuesto = Integer.parseInt(txtPuesto.getText().trim());
 
             return ConfiguracionFactory.crearConfiguracionPuesto(
-                    ipPrimario, ipRespaldo, puertoServidor, idPuesto
-            );
+                    ipPrimario, ipRespaldo, puertoServidor, idPuesto);
         } catch (NumberFormatException ex) {
             JOptionPane.showMessageDialog(
                     null,
                     "El puerto y el número de puesto deben ser enteros válidos.",
                     "Error de formato",
-                    JOptionPane.ERROR_MESSAGE
-            );
+                    JOptionPane.ERROR_MESSAGE);
             return null;
         }
     }
 
     @Override
-    public void windowOpened(WindowEvent e) { }
+    public void windowOpened(WindowEvent e) {
+    }
 
     @Override
     public void windowClosing(WindowEvent e) {
@@ -166,17 +165,22 @@ public class ControladorPuesto implements ActionListener, WindowListener {
     }
 
     @Override
-    public void windowClosed(WindowEvent e) { }
+    public void windowClosed(WindowEvent e) {
+    }
 
     @Override
-    public void windowIconified(WindowEvent e) { }
+    public void windowIconified(WindowEvent e) {
+    }
 
     @Override
-    public void windowDeiconified(WindowEvent e) { }
+    public void windowDeiconified(WindowEvent e) {
+    }
 
     @Override
-    public void windowActivated(WindowEvent e) { }
+    public void windowActivated(WindowEvent e) {
+    }
 
     @Override
-    public void windowDeactivated(WindowEvent e) { }
+    public void windowDeactivated(WindowEvent e) {
+    }
 }

@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Observable;
@@ -57,11 +58,11 @@ public class MonitorSala extends Observable {
     public void cargarHistorialInicial() {
         try {
             List<Turno> lista = historialDAO.obtenerUltimosLlamados(MAX_HISTORIAL);
-
             synchronized (historial) {
                 historial.clear();
                 if (lista != null) {
                     historial.addAll(lista);
+                    Collections.reverse(historial); // Para mostrar el más reciente primero
                 }
             }
 
@@ -93,7 +94,7 @@ public class MonitorSala extends Observable {
 
     private void procesarNotificacion(Socket socket) {
         try (Socket s = socket;
-             BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()))) {
+                BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()))) {
 
             String cifrado = in.readLine();
             if (cifrado == null || cifrado.trim().isEmpty()) {
@@ -160,6 +161,10 @@ public class MonitorSala extends Observable {
         urgente.setPuestoAtencion(puesto);
         urgente.incrementarIntentos();
 
+        if (turnoActual != null && !turnoActual.getDniCliente().equals(dni)) {
+            agregarAlHistorial(turnoActual);
+            historial.removeIf(s -> s.equals(urgente));
+        }
         turnoActual = urgente;
         dniActual = dni;
         puestoActual = puesto;

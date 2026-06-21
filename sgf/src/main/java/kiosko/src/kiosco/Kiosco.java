@@ -1,7 +1,5 @@
 package kiosko.src.kiosco;
 
-import javax.swing.*;
-
 import Globales.Configuracion;
 import ServidorCentral.seguridad.Encriptador;
 
@@ -29,8 +27,8 @@ public class Kiosco {
 
     public String procesarTurno(String dni) {
         try (Socket socket = conectarConReintento(config.getPuertoServidor());
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
             // Enviamos DNI cifrado
             out.println(encriptador.encriptar(dni));
