@@ -249,6 +249,9 @@ public class VistaMonitor extends JFrame implements InterfazPublico, Observer {
             }
         } else {
             actualizarHistorialVisible(monitor.getHistorial());
+            lblTurnoActual.setText(monitor.getDniActual() != null ? monitor.getDniActual() : "---");
+            lblPuesto.setText(
+                    "Diríjase al Puesto: " + (monitor.getPuestoActual() != -1 ? monitor.getPuestoActual() : "---"));
         }
     }
 

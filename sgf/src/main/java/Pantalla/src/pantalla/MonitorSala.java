@@ -21,7 +21,7 @@ import java.util.Observable;
 @SuppressWarnings("deprecation")
 public class MonitorSala extends Observable {
 
-    private static final int MAX_HISTORIAL = 5;
+    private static final int MAX_HISTORIAL = 4;
 
     private final int puerto;
     private final String formato;
@@ -57,12 +57,29 @@ public class MonitorSala extends Observable {
 
     public void cargarHistorialInicial() {
         try {
-            List<Turno> lista = historialDAO.obtenerUltimosLlamados(MAX_HISTORIAL);
+            List<Turno> lista = historialDAO.obtenerUltimosLlamados(MAX_HISTORIAL + 1); // el +1 es para incluir el
+                                                                                        // turno actual si es que ya
+                                                                                        // existe
             synchronized (historial) {
                 historial.clear();
                 if (lista != null) {
                     historial.addAll(lista);
                     Collections.reverse(historial); // Para mostrar el más reciente primero
+                    turnoActual = historial.pop(); // El turno más reciente se muestra como actual
+                    if (turnoActual.isExpirado()) {
+                        historial.addFirst(turnoActual);
+                        turnoActual = null; // Si el turno actual está expirado, no mostrar ninguno
+                        try {
+                            historial.remove(MAX_HISTORIAL); // Eliminar el turno extra que se agregó para incluir el
+                                                             // actual
+                        } catch (IndexOutOfBoundsException e) {
+                            // No hay turno extra, no hacer nada
+                        }
+                    }
+                    if (turnoActual != null) {
+                        dniActual = turnoActual.getDniCliente();
+                        puestoActual = turnoActual.getPuestoAtencion();
+                    }
                 }
             }
 
