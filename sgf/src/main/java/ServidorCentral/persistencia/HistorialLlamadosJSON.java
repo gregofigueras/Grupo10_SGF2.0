@@ -13,7 +13,7 @@ import java.util.List;
 import java.lang.reflect.Type;
 
 public class HistorialLlamadosJSON implements IHistorialLlamadosDAO {
-    private final String RUTA_ARCHIVO = "historial_llamados.json";
+    private final String RUTA_ARCHIVO = "historial_llamados" + ConfigPersistencia.getSufijo() + ".json";
     private final Gson gson = new Gson();
     private final Encriptador encriptador = new Encriptador(123456);
 
@@ -44,7 +44,7 @@ public class HistorialLlamadosJSON implements IHistorialLlamadosDAO {
                         // Si ya venía en claro, lo dejamos igual
                     }
 
-                    Turno copia = new Turno(dniReal);
+                    Turno copia = new Turno(dniReal, t.isExpirado());
                     copia.setPuestoAtencion(t.getPuestoAtencion());
                     for (int i = 0; i < t.getIntentosLlamado(); i++) {
                         copia.incrementarIntentos();
@@ -69,7 +69,7 @@ public class HistorialLlamadosJSON implements IHistorialLlamadosDAO {
                     dniEncriptado = encriptador.encriptar(dniEncriptado);
                 }
 
-                Turno copia = new Turno(dniEncriptado);
+                Turno copia = new Turno(dniEncriptado, t.isExpirado());
                 copia.setPuestoAtencion(t.getPuestoAtencion());
                 for (int i = 0; i < t.getIntentosLlamado(); i++) {
                     copia.incrementarIntentos();
@@ -89,6 +89,22 @@ public class HistorialLlamadosJSON implements IHistorialLlamadosDAO {
         List<Turno> historial = leerArchivo();
         historial.add(turno);
         escribirArchivo(historial);
+    }
+
+    @Override
+    public void actualizarLlamado(Turno turno) {
+        List<Turno> historial = leerArchivo();
+        boolean modificado = false;
+        for (int i = 0; i < historial.size(); i++) {
+            if (historial.get(i).getDniCliente().equals(turno.getDniCliente())) {
+                historial.set(i, turno);
+                modificado = true;
+                break;
+            }
+        }
+        if (modificado) {
+            escribirArchivo(historial);
+        }
     }
 
     @Override

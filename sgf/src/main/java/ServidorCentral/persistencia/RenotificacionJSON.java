@@ -12,7 +12,7 @@ import java.util.Map;
 import java.lang.reflect.Type;
 
 public class RenotificacionJSON implements IRenotificacionDAO {
-    private final String RUTA_ARCHIVO = "renotificaciones.json";
+    private final String RUTA_ARCHIVO = "renotificaciones" + ConfigPersistencia.getSufijo() + ".json";
     private final Gson gson = new Gson();
     private final Encriptador encriptador = new Encriptador(123456);
 
@@ -21,15 +21,26 @@ public class RenotificacionJSON implements IRenotificacionDAO {
             File file = new File(RUTA_ARCHIVO);
             if (!file.exists())
                 return new HashMap<>();
-            String encriptado = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
-            if (encriptado.isEmpty())
+            String json = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
+            if (json.isEmpty())
                 return new HashMap<>();
 
-            String json = encriptador.desencriptar(encriptado);
             Type tipoMapa = new TypeToken<HashMap<String, Integer>>() {
             }.getType();
             Map<String, Integer> mapa = gson.fromJson(json, tipoMapa);
-            return mapa == null ? new HashMap<>() : mapa;
+            if (mapa == null) return new HashMap<>();
+
+            Map<String, Integer> mapaDesencriptado = new HashMap<>();
+            for (Map.Entry<String, Integer> entry : mapa.entrySet()) {
+                String dniReal = entry.getKey();
+                try {
+                    dniReal = encriptador.desencriptar(dniReal);
+                } catch (Exception ignored) {
+                }
+                mapaDesencriptado.put(dniReal, entry.getValue());
+            }
+
+            return mapaDesencriptado;
         } catch (Exception e) {
             return new HashMap<>();
         }
@@ -37,9 +48,13 @@ public class RenotificacionJSON implements IRenotificacionDAO {
 
     private void escribirArchivo(Map<String, Integer> mapa) {
         try {
-            String json = gson.toJson(mapa);
-            String encriptado = encriptador.encriptar(json);
-            Files.write(Paths.get(RUTA_ARCHIVO), encriptado.getBytes());
+            Map<String, Integer> mapaEncriptado = new HashMap<>();
+            for (Map.Entry<String, Integer> entry : mapa.entrySet()) {
+                mapaEncriptado.put(encriptador.encriptar(entry.getKey()), entry.getValue());
+            }
+
+            String json = gson.toJson(mapaEncriptado);
+            Files.write(Paths.get(RUTA_ARCHIVO), json.getBytes());
         } catch (Exception e) {
             System.out.println("Error guardando renotificaciones: " + e.getMessage());
         }

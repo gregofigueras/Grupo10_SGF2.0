@@ -13,7 +13,7 @@ import java.util.Queue;
 import java.lang.reflect.Type;
 
 public class ColaEsperaJSON implements IColaEsperaDAO {
-    private final String RUTA_ARCHIVO = "cola_espera.json";
+    private final String RUTA_ARCHIVO = "cola_espera" + ConfigPersistencia.getSufijo() + ".json";
     private final Gson gson = new Gson();
     private final Encriptador encriptador = new Encriptador(123456); // Clave secreta numérica
 
@@ -40,7 +40,7 @@ public class ColaEsperaJSON implements IColaEsperaDAO {
                     } catch (Exception ignored) {
                     }
 
-                    Turno copia = new Turno(dniReal);
+                    Turno copia = new Turno(dniReal, t.isExpirado());
                     copia.setPuestoAtencion(t.getPuestoAtencion());
                     for (int i = 0; i < t.getIntentosLlamado(); i++) {
                         copia.incrementarIntentos();
@@ -61,7 +61,7 @@ public class ColaEsperaJSON implements IColaEsperaDAO {
             Queue<Turno> colaParaGuardar = new LinkedList<>();
 
             for (Turno t : cola) {
-                Turno copia = new Turno(encriptador.encriptar(t.getDniCliente()));
+                Turno copia = new Turno(encriptador.encriptar(t.getDniCliente()), t.isExpirado());
                 copia.setPuestoAtencion(t.getPuestoAtencion());
 
                 for (int i = 0; i < t.getIntentosLlamado(); i++) {

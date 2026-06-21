@@ -6,5 +6,7 @@ import java.util.List;
 public interface IHistorialLlamadosDAO {
     void registrarLlamado(Turno turno);
 
+    void actualizarLlamado(Turno turno);
+
     List<Turno> obtenerUltimosLlamados(int cantidad);
 }

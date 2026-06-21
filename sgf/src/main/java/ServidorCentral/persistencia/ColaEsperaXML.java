@@ -16,7 +16,7 @@ import java.util.LinkedList;
 import java.util.Queue;
 
 public class ColaEsperaXML implements IColaEsperaDAO {
-    private final String RUTA_ARCHIVO = "cola_espera.xml";
+    private final String RUTA_ARCHIVO = "cola_espera" + ConfigPersistencia.getSufijo() + ".xml";
     private final Encriptador encriptador = new Encriptador(123456);
 
     private Queue<Turno> leerArchivo() {
@@ -27,12 +27,7 @@ public class ColaEsperaXML implements IColaEsperaDAO {
                 return cola;
             }
 
-            String encriptado = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
-            if (encriptado.trim().isEmpty()) {
-                return cola;
-            }
-
-            String xml = encriptador.desencriptar(encriptado);
+            String xml = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
             if (xml.trim().isEmpty()) {
                 return cola;
             }
@@ -52,6 +47,12 @@ public class ColaEsperaXML implements IColaEsperaDAO {
                 }
 
                 Turno t = new Turno(dniReal);
+                
+                NodeList expiradoList = e.getElementsByTagName("expirado");
+                if (expiradoList != null && expiradoList.getLength() > 0) {
+                    t.setExpirado(Boolean.parseBoolean(expiradoList.item(0).getTextContent()));
+                }
+
                 t.setPuestoAtencion(Integer.parseInt(e.getElementsByTagName("puesto").item(0).getTextContent()));
 
                 int intentos = Integer.parseInt(e.getElementsByTagName("intentos").item(0).getTextContent());
@@ -80,6 +81,7 @@ public class ColaEsperaXML implements IColaEsperaDAO {
                         .append("    <dni>").append(dniEncriptado).append("</dni>\n")
                         .append("    <puesto>").append(t.getPuestoAtencion()).append("</puesto>\n")
                         .append("    <intentos>").append(t.getIntentosLlamado()).append("</intentos>\n")
+                        .append("    <expirado>").append(t.isExpirado()).append("</expirado>\n")
                         .append("  </turno>\n");
             }
 

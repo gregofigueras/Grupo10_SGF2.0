@@ -16,11 +16,13 @@ public class ServidorMain {
         JTextField txtPtoPantalla = new JTextField("6000");
         JTextField txtIpRespaldo = new JTextField("127.0.0.2");
         JTextField txtClave = new JTextField("12345"); // Clave numérica de encriptación
+        JTextField txtIdNodo = new JTextField(esPrimario ? "Nodo1" : "Nodo2");
 
         String[] opcionesFormato = { "JSON", "XML", "TXT" };
         JComboBox<String> cmbFormato = new JComboBox<>(opcionesFormato);
 
         Object[] message = {
+                "ID del Servidor (Nombre único para archivos):", txtIdNodo,
                 "Puerto de Escucha para Kioscos:", txtKiosco,
                 "Puerto de Escucha para Operadores:", txtOperador,
                 "IP de la Pantalla (Monitor):", txtIpPantalla,
@@ -45,9 +47,10 @@ public class ServidorMain {
         String ipRespaldo = txtIpRespaldo.getText().trim();
         String formato = (String) cmbFormato.getSelectedItem();
         int claveEncriptacion = Integer.parseInt(txtClave.getText().trim());
+        String idNodo = txtIdNodo.getText().trim();
 
         // Iniciar el núcleo del servidor
         ServidorCentral servidor = new ServidorCentral();
-        servidor.iniciar(esPrimario, puertoKiosco, puertoOperador, ipPantalla, puertoPantalla, ipRespaldo, formato, claveEncriptacion);
+        servidor.iniciar(esPrimario, puertoKiosco, puertoOperador, ipPantalla, puertoPantalla, ipRespaldo, formato, claveEncriptacion, idNodo);
     }
 }

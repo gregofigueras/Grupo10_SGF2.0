@@ -15,7 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class HistorialLlamadosXML implements IHistorialLlamadosDAO {
-    private final String RUTA_ARCHIVO = "historial_llamados.xml";
+    private final String RUTA_ARCHIVO = "historial_llamados" + ConfigPersistencia.getSufijo() + ".xml";
+    private final ServidorCentral.seguridad.Encriptador encriptador = new ServidorCentral.seguridad.Encriptador(123456);
 
     private List<Turno> leerArchivo() {
         List<Turno> historial = new ArrayList<>();
@@ -37,8 +38,20 @@ public class HistorialLlamadosXML implements IHistorialLlamadosDAO {
             for (int i = 0; i < nList.getLength(); i++) {
                 Element e = (Element) nList.item(i);
 
-                String dni = e.getElementsByTagName("dni").item(0).getTextContent();
-                Turno t = new Turno(dni);
+                String dniGuardado = e.getElementsByTagName("dni").item(0).getTextContent();
+                String dniReal = dniGuardado;
+                try {
+                    dniReal = encriptador.desencriptar(dniGuardado);
+                } catch (Exception ignored) {
+                }
+
+                Turno t = new Turno(dniReal);
+                
+                NodeList expiradoList = e.getElementsByTagName("expirado");
+                if (expiradoList != null && expiradoList.getLength() > 0) {
+                    t.setExpirado(Boolean.parseBoolean(expiradoList.item(0).getTextContent()));
+                }
+
                 t.setPuestoAtencion(Integer.parseInt(e.getElementsByTagName("puesto").item(0).getTextContent()));
 
                 int intentos = Integer.parseInt(e.getElementsByTagName("intentos").item(0).getTextContent());
@@ -58,10 +71,16 @@ public class HistorialLlamadosXML implements IHistorialLlamadosDAO {
             StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<historial>\n");
 
             for (Turno t : lista) {
+                String dniEncriptado = t.getDniCliente();
+                if (dniEncriptado != null && !dniEncriptado.isEmpty()) {
+                    dniEncriptado = encriptador.encriptar(dniEncriptado);
+                }
+
                 sb.append("  <turno>\n")
-                        .append("    <dni>").append(t.getDniCliente()).append("</dni>\n")
+                        .append("    <dni>").append(dniEncriptado).append("</dni>\n")
                         .append("    <puesto>").append(t.getPuestoAtencion()).append("</puesto>\n")
                         .append("    <intentos>").append(t.getIntentosLlamado()).append("</intentos>\n")
+                        .append("    <expirado>").append(t.isExpirado()).append("</expirado>\n")
                         .append("  </turno>\n");
             }
 
@@ -76,6 +95,22 @@ public class HistorialLlamadosXML implements IHistorialLlamadosDAO {
         List<Turno> historial = leerArchivo();
         historial.add(turno);
         escribirArchivo(historial);
+    }
+
+    @Override
+    public void actualizarLlamado(Turno turno) {
+        List<Turno> historial = leerArchivo();
+        boolean modificado = false;
+        for (int i = 0; i < historial.size(); i++) {
+            if (historial.get(i).getDniCliente().equals(turno.getDniCliente())) {
+                historial.set(i, turno);
+                modificado = true;
+                break;
+            }
+        }
+        if (modificado) {
+            escribirArchivo(historial);
+        }
     }
 
     @Override

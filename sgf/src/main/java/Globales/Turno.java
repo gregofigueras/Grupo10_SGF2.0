@@ -119,6 +119,14 @@ public class Turno {
         this.intentosLlamado++;
     }
 
+    public boolean isExpirado() {
+        return expirado;
+    }
+
+    public void setExpirado(boolean expirado) {
+        this.expirado = expirado;
+    }
+
     @Override
     public String toString() {
         return this.expirado ? "   " + dniCliente + "                    EXPIRADO"

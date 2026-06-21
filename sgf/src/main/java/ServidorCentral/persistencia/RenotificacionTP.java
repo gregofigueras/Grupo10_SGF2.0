@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RenotificacionTP implements IRenotificacionDAO {
-    private final String RUTA_ARCHIVO = "renotificaciones.txt";
+    private final String RUTA_ARCHIVO = "renotificaciones" + ConfigPersistencia.getSufijo() + ".txt";
     private final Encriptador encriptador = new Encriptador(123456);
 
     private Map<String, Integer> leerArchivo() {
@@ -18,17 +18,21 @@ public class RenotificacionTP implements IRenotificacionDAO {
             File file = new File(RUTA_ARCHIVO);
             if (!file.exists())
                 return mapa;
-            String encriptado = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
-            if (encriptado.trim().isEmpty())
+            String datosPuros = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
+            if (datosPuros.trim().isEmpty())
                 return mapa;
 
-            String datosPuros = encriptador.desencriptar(encriptado);
             String[] lineas = datosPuros.split("\n");
             for (String linea : lineas) {
                 if (linea.trim().isEmpty())
                     continue;
                 String[] campos = linea.split(";");
-                mapa.put(campos[0], Integer.parseInt(campos[1]));
+                String dniReal = campos[0];
+                try {
+                    dniReal = encriptador.desencriptar(dniReal);
+                } catch (Exception ignored) {
+                }
+                mapa.put(dniReal, Integer.parseInt(campos[1]));
             }
         } catch (Exception e) {
         }
@@ -39,10 +43,10 @@ public class RenotificacionTP implements IRenotificacionDAO {
         try {
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<String, Integer> entry : mapa.entrySet()) {
-                sb.append(entry.getKey()).append(";").append(entry.getValue()).append("\n");
+                String dniEncriptado = encriptador.encriptar(entry.getKey());
+                sb.append(dniEncriptado).append(";").append(entry.getValue()).append("\n");
             }
-            String encriptado = encriptador.encriptar(sb.toString());
-            Files.write(Paths.get(RUTA_ARCHIVO), encriptado.getBytes());
+            Files.write(Paths.get(RUTA_ARCHIVO), sb.toString().getBytes());
         } catch (Exception e) {
         }
     }
