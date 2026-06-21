@@ -17,33 +17,46 @@ public class ColaEsperaTP implements IColaEsperaDAO {
         Queue<Turno> cola = new LinkedList<>();
         try {
             File file = new File(RUTA_ARCHIVO);
-            if (!file.exists())
+            if (!file.exists()) {
                 return cola;
+            }
 
             String encriptado = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
-            if (encriptado.trim().isEmpty())
+            if (encriptado.trim().isEmpty()) {
                 return cola;
+            }
 
             String datosPuros = encriptador.desencriptar(encriptado);
-            if (datosPuros.trim().isEmpty())
+            if (datosPuros.trim().isEmpty()) {
                 return cola;
+            }
 
-            // Separamos por renglones
             String[] lineas = datosPuros.split("\n");
             for (String linea : lineas) {
-                if (linea.trim().isEmpty())
+                if (linea.trim().isEmpty()) {
                     continue;
+                }
 
-                // Separamos por punto y coma (DNI;Puesto;Intentos)
                 String[] campos = linea.split(";");
-                Turno t = new Turno(campos[0]);
+                if (campos.length < 3) {
+                    continue;
+                }
+
+                String dniGuardado = campos[0];
+                String dniReal = dniGuardado;
+                try {
+                    dniReal = encriptador.desencriptar(dniGuardado);
+                } catch (Exception ignored) {
+                }
+
+                Turno t = new Turno(dniReal);
                 t.setPuestoAtencion(Integer.parseInt(campos[1]));
 
-                // Reconstruimos los intentos
                 int intentos = Integer.parseInt(campos[2]);
                 for (int i = 0; i < intentos; i++) {
                     t.incrementarIntentos();
                 }
+
                 cola.add(t);
             }
         } catch (Exception e) {
@@ -54,11 +67,18 @@ public class ColaEsperaTP implements IColaEsperaDAO {
     private void escribirArchivo(Queue<Turno> cola) {
         try {
             StringBuilder sb = new StringBuilder();
+
             for (Turno t : cola) {
-                sb.append(t.getDniCliente()).append(";")
+                String dniEncriptado = t.getDniCliente();
+                if (dniEncriptado != null && !dniEncriptado.isEmpty()) {
+                    dniEncriptado = encriptador.encriptar(dniEncriptado);
+                }
+
+                sb.append(dniEncriptado).append(";")
                         .append(t.getPuestoAtencion()).append(";")
                         .append(t.getIntentosLlamado()).append("\n");
             }
+
             String encriptado = encriptador.encriptar(sb.toString());
             Files.write(Paths.get(RUTA_ARCHIVO), encriptado.getBytes());
         } catch (Exception e) {

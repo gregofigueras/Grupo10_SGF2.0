@@ -23,18 +23,20 @@ public class ColaEsperaXML implements IColaEsperaDAO {
         Queue<Turno> cola = new LinkedList<>();
         try {
             File file = new File(RUTA_ARCHIVO);
-            if (!file.exists())
+            if (!file.exists()) {
                 return cola;
+            }
 
             String encriptado = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
-            if (encriptado.trim().isEmpty())
+            if (encriptado.trim().isEmpty()) {
                 return cola;
+            }
 
             String xml = encriptador.desencriptar(encriptado);
-            if (xml.trim().isEmpty())
+            if (xml.trim().isEmpty()) {
                 return cola;
+            }
 
-            // Motor de Java nativo para leer XML
             Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder()
                     .parse(new InputSource(new StringReader(xml)));
 
@@ -42,12 +44,20 @@ public class ColaEsperaXML implements IColaEsperaDAO {
             for (int i = 0; i < nList.getLength(); i++) {
                 Element e = (Element) nList.item(i);
 
-                Turno t = new Turno(e.getElementsByTagName("dni").item(0).getTextContent());
+                String dniGuardado = e.getElementsByTagName("dni").item(0).getTextContent();
+                String dniReal = dniGuardado;
+                try {
+                    dniReal = encriptador.desencriptar(dniGuardado);
+                } catch (Exception ignored) {
+                }
+
+                Turno t = new Turno(dniReal);
                 t.setPuestoAtencion(Integer.parseInt(e.getElementsByTagName("puesto").item(0).getTextContent()));
 
                 int intentos = Integer.parseInt(e.getElementsByTagName("intentos").item(0).getTextContent());
-                for (int j = 0; j < intentos; j++)
+                for (int j = 0; j < intentos; j++) {
                     t.incrementarIntentos();
+                }
 
                 cola.add(t);
             }
@@ -58,19 +68,25 @@ public class ColaEsperaXML implements IColaEsperaDAO {
 
     private void escribirArchivo(Queue<Turno> cola) {
         try {
-            // Armamos el XML como texto
             StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<turnos>\n");
+
             for (Turno t : cola) {
+                String dniEncriptado = t.getDniCliente();
+                if (dniEncriptado != null && !dniEncriptado.isEmpty()) {
+                    dniEncriptado = encriptador.encriptar(dniEncriptado);
+                }
+
                 sb.append("  <turno>\n")
-                        .append("    <dni>").append(t.getDniCliente()).append("</dni>\n")
+                        .append("    <dni>").append(dniEncriptado).append("</dni>\n")
                         .append("    <puesto>").append(t.getPuestoAtencion()).append("</puesto>\n")
                         .append("    <intentos>").append(t.getIntentosLlamado()).append("</intentos>\n")
                         .append("  </turno>\n");
             }
+
             sb.append("</turnos>");
 
-            String encriptado = encriptador.encriptar(sb.toString());
-            Files.write(Paths.get(RUTA_ARCHIVO), encriptado.getBytes());
+            // Guardamos XML normal, pero con el DNI encriptado
+            Files.write(Paths.get(RUTA_ARCHIVO), sb.toString().getBytes());
         } catch (Exception e) {
         }
     }

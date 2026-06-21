@@ -2,261 +2,204 @@ package Pantalla.src.pantalla;
 
 import Globales.Turno;
 import ServidorCentral.persistencia.IHistorialLlamadosDAO;
+import ServidorCentral.persistencia.JSONFactory;
+import ServidorCentral.persistencia.PersistenciaFactory;
+import ServidorCentral.persistencia.TextoPlanoFactory;
+import ServidorCentral.persistencia.XMLFactory;
+import ServidorCentral.seguridad.Encriptador;
 
-import javax.swing.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Observable;
-import java.util.regex.PatternSyntaxException;
-import java.util.LinkedList;
 
-/**
- * Clase que representa el monitor de la sala de espera. Se encarga de escuchar
- * en un puerto específico para recibir actualizaciones del servidor central
- * sobre el turno actual y el historial de llamados. Utiliza el patrón Observer
- * para notificar a la interfaz gráfica cada vez que hay un cambio en el turno
- * actual o en el historial. Además, mantiene una lista de los últimos 4 turnos
- * atendidos para mostrar en la pantalla pública.
- */
-@SuppressWarnings("deprecation") // Para Observable, que es lo que nos pidieron usar
+@SuppressWarnings("deprecation")
 public class MonitorSala extends Observable {
-    private Turno turnoActual;
-    private LinkedList<Turno> historial;
-    private int puertoEscucha;
 
-    /**
-     * Constructor del MonitorSala. Inicializa el puerto de escucha y el historial,
-     * y comienza a escuchar por conexiones del servidor central para recibir
-     * actualizaciones sobre el turno actual y el historial de llamados.
-     * 
-     * @param puertoEscucha Puerto en el que el monitor escuchará las
-     *                      actualizaciones del servidor central.
-     */
-    public MonitorSala(int puertoEscucha) {
-        this.puertoEscucha = puertoEscucha;
-        historial = new LinkedList<>();
-        iniciarServidorOperador();
+    private static final int MAX_HISTORIAL = 5;
+
+    private final int puerto;
+    private final String formato;
+    private final Encriptador encriptador;
+    private final IHistorialLlamadosDAO historialDAO;
+
+    private final LinkedList<Turno> historial = new LinkedList<>();
+
+    private volatile Turno turnoActual;
+    private volatile String dniActual = "---";
+    private volatile int puestoActual = -1;
+
+    public MonitorSala(int puerto, String formato, int clave) {
+        this.puerto = puerto;
+        this.formato = formato;
+        this.encriptador = new Encriptador(clave);
+
+        PersistenciaFactory fabrica = crearFabricaPersistencia(formato);
+        this.historialDAO = fabrica.crearHistorialLlamadosDAO();
+
+        iniciarEscuchaServidorCentral();
     }
 
-    /**
-     * Obtiene el historial de los últimos turnos atendidos. El historial se
-     * mantiene actualizado con las últimas 4 entradas, mostrando el turno actual en
-     * la parte superior y los anteriores debajo. Cada entrada del historial incluye
-     * el DNI del cliente y el puesto de atención o el estado de expirado si el
-     * turno fue descartado por expirar. El método devuelve una lista de cadenas que
-     * representan el historial formateado para su visualización en la pantalla
-     * pública.
-     * 
-     * @return Lista de cadenas representando el historial de turnos atendidos, con
-     *         el más reciente en la parte superior. Cada entrada incluye el DNI del
-     *         cliente y el puesto de atención o el estado de expirado si el turno
-     *         fue descartado por expirar.
-     */
-    public LinkedList<Turno> getHistorial() {
-        return historial;
+    private PersistenciaFactory crearFabricaPersistencia(String formatoPersistencia) {
+        if ("XML".equalsIgnoreCase(formatoPersistencia)) {
+            return new XMLFactory();
+        }
+        if ("TXT".equalsIgnoreCase(formatoPersistencia)) {
+            return new TextoPlanoFactory();
+        }
+        return new JSONFactory();
     }
 
-    /**
-     * Carga el historial inicial de los últimos turnos atendidos desde el servidor
-     * central. Este método se llama al iniciar el monitor para mostrar los últimos
-     * turnos atendidos antes de recibir nuevas actualizaciones. El historial se
-     * mantiene actualizado con las últimas 4 entradas, mostrando el turno actual en
-     * la parte superior y los anteriores debajo. Cada entrada del historial incluye
-     * el DNI del cliente y el puesto de atención o el estado de expirado si el
-     * turno fue descartado por expirar. Si ocurre un error al obtener el historial,
-     * se limpia la lista de historial para evitar mostrar información
-     * desactualizada o incorrecta.
-     */
     public void cargarHistorialInicial() {
         try {
-            IHistorialLlamadosDAO historialDAO = new ServidorCentral.persistencia.JSONFactory()
-                    .crearHistorialLlamadosDAO();
-            List<Globales.Turno> llamados = historialDAO.obtenerUltimosLlamados(4);
+            List<Turno> lista = historialDAO.obtenerUltimosLlamados(MAX_HISTORIAL);
 
-            historial.clear();
-            // Queremos mostrar el historial con el más reciente arriba
-            for (Turno turno : llamados) {
-                historial.addFirst(turno);
+            synchronized (historial) {
+                historial.clear();
+                if (lista != null) {
+                    historial.addAll(lista);
+                }
             }
 
             setChanged();
-            notifyObservers(historial);
+            notifyObservers(getHistorial());
         } catch (Exception e) {
-            historial.clear();
+            setChanged();
+            notifyObservers(new IOException("No se pudo cargar historial inicial", e));
         }
     }
 
-    /**
-     * Inicia un servidor en un hilo separado que escucha por conexiones del
-     * servidor central para recibir actualizaciones sobre el turno actual y el
-     * historial de llamados. El servidor acepta conexiones entrantes, lee los
-     * mensajes enviados por el servidor central, y procesa cada mensaje para
-     * actualizar el turno actual y el historial de llamados. Cada mensaje se espera
-     * que tenga el formato "TIPO_DNI_PUESTO", donde TIPO puede ser "NUEVO",
-     * "URGENTE" o "DESCARTADO". Si el mensaje indica que un turno fue descartado
-     * por expirar, se actualiza el historial para reflejar ese estado. Si el
-     * mensaje indica un nuevo turno o un turno urgente, se actualiza el turno
-     * actual y se mantiene el historial actualizado con los últimos turnos
-     * atendidos. Cada vez que se procesa un mensaje, se notifica a los observadores
-     * para que la interfaz gráfica pueda actualizarse con la nueva información.
-     */
-    private void iniciarServidorOperador() {
-        Thread hiloServidor = new Thread(() -> {
-            // Usamos la variable 'puertoEscucha' que el usuario ingresó
-            try (ServerSocket serverSocket = new ServerSocket(puertoEscucha)) {
-                System.out.println("Monitor escuchando en el puerto " + puertoEscucha);
+    private void iniciarEscuchaServidorCentral() {
+        Thread hilo = new Thread(() -> {
+            try (ServerSocket serverSocket = new ServerSocket(puerto)) {
                 while (true) {
-                    Socket socketOperador = serverSocket.accept();
-                    BufferedReader in = new BufferedReader(new InputStreamReader(socketOperador.getInputStream()));
-                    String mensaje = in.readLine();
-                    if (mensaje != null)
-                        SwingUtilities.invokeLater(() -> procesarMensaje(mensaje));
-                    in.close();
-                    socketOperador.close();
+                    Socket socket = serverSocket.accept();
+                    Thread cliente = new Thread(() -> procesarNotificacion(socket));
+                    cliente.setDaemon(true);
+                    cliente.start();
                 }
             } catch (IOException e) {
                 setChanged();
                 notifyObservers(e);
             }
         });
-        hiloServidor.start();
+        hilo.setDaemon(true);
+        hilo.start();
     }
 
-    /**
-     * Procesa un mensaje recibido del servidor central para actualizar el turno
-     * actual y el historial de llamados.
-     * 
-     * <pre>
-     * Precondición:
-     * El mensaje debe ser distinto de null y se espera que tenga el formato
-     * "TIPO_DNI_PUESTO", donde TIPO puede ser "NUEVO", "URGENTE" o "DESCARTADO".
-     * </pre>
-     * 
-     * @param mensaje Mensaje recibido del servidor central con la información del
-     *                turno actual o el historial de llamados. El mensaje se espera
-     *                que tenga el formato "TIPO_DNI_PUESTO", donde TIPO puede ser
-     *                "NUEVO", "URGENTE" o "DESCARTADO".
-     */
-    private void procesarMensaje(String mensaje) {
-        try {
+    private void procesarNotificacion(Socket socket) {
+        try (Socket s = socket;
+             BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream()))) {
+
+            String cifrado = in.readLine();
+            if (cifrado == null || cifrado.trim().isEmpty()) {
+                return;
+            }
+
+            String mensaje = encriptador.desencriptar(cifrado);
             String[] partes = mensaje.split("_");
+            if (partes.length < 3) {
+                return;
+            }
+
             String tipo = partes[0];
             String dni = partes[1];
-            String puesto = partes[2];
+            int puesto = Integer.parseInt(partes[2]);
 
-            // NUEVA LÓGICA: Si el servidor avisa que el turno fue descartado (Expiró)
-            if ("DESCARTADO".equals(tipo)) {
-                // Lo borramos si ya estaba en el historial (por algún motivo)
-                historial.removeIf(s -> s.getDniCliente().equals(dni));
-                // Lo mandamos al historial con la etiqueta de EXPIRADO
-                historial.addFirst(new Turno(dni, true));
-                if (historial.size() > 4)
-                    historial.removeLast();
-                if (turnoActual != null && turnoActual.getDniCliente().equals(dni)) {
-                    turnoActual = null;
-                }
-            } else {
-                Turno turnoAnterior = turnoActual;
-                if (turnoAnterior != null && !turnoAnterior.getDniCliente().equals(dni))
-                    historial.addFirst(turnoAnterior);
-                turnoActual = new Turno(dni);
-                turnoActual.setDniCliente(dni);
-                turnoActual.setPuestoAtencion(Integer.parseInt(puesto));
-                historial.removeIf(s -> s.equals(turnoActual));
-                if (historial.size() > 4)
-                    historial.removeLast();
+            switch (tipo) {
+                case "NUEVO":
+                    procesarNuevo(dni, puesto);
+                    setChanged();
+                    notifyObservers("NUEVO");
+                    break;
+
+                case "URGENTE":
+                    procesarUrgente(dni, puesto);
+                    setChanged();
+                    notifyObservers("URGENTE");
+                    break;
+
+                case "DESCARTADO":
+                    procesarDescartado(dni, puesto);
+                    setChanged();
+                    notifyObservers("DESCARTADO");
+                    break;
+
+                default:
+                    // Mensaje desconocido: ignorar
+                    break;
             }
-            setChanged();
-            notifyObservers(tipo);
-        } catch (PatternSyntaxException e) {
-            System.out.println("Formato desconocido: " + mensaje);
-        }
 
+        } catch (Exception e) {
+            setChanged();
+            notifyObservers(new IOException("Error procesando notificacion del servidor", e));
+        }
     }
 
-    /**
-     * Obtiene el turno actual que se está atendiendo. El turno actual se actualiza
-     * cada vez que se recibe un mensaje del servidor central indicando un nuevo
-     * turno o un turno urgente. Si el mensaje indica que un turno fue descartado
-     * por expirar, el turno actual no se actualiza, pero el historial se mantiene
-     * actualizado para reflejar ese estado. El método devuelve el turno actual con
-     * su DNI y puesto de atención, o null si no hay un turno actual definido. El
-     * turno actual se utiliza para mostrar la información del cliente que se está
-     * atendiendo en la pantalla pública, incluyendo su DNI y el puesto de atención
-     * asignado. Si no hay un turno actual definido, se muestra "---" en la pantalla
-     * pública para indicar que no hay un cliente siendo atendido en ese momento.
-     * 
-     * @return El turno actual que se está atendiendo, con su DNI y puesto de
-     *         atención, o null si no hay un turno actual definido. El turno actual
-     *         se utiliza para mostrar la información del cliente que se está
-     *         atendiendo en la pantalla pública, incluyendo su DNI y el puesto de
-     *         atención asignado. Si no hay un turno actual definido, se debe
-     *         mostrar "---" en la pantalla pública para indicar que no hay un
-     *         cliente siendo atendido en ese momento.
-     */
+    private void procesarNuevo(String dni, int puesto) {
+        // El turno que estaba en pantalla pasa al historial.
+        if (turnoActual != null) {
+            agregarAlHistorial(turnoActual);
+        }
+
+        Turno nuevo = new Turno(dni);
+        nuevo.setPuestoAtencion(puesto);
+
+        turnoActual = nuevo;
+        dniActual = dni;
+        puestoActual = puesto;
+    }
+
+    private void procesarUrgente(String dni, int puesto) {
+        // En urgente mantenemos el turno actual sincronizado con el servidor.
+        Turno urgente = new Turno(dni);
+        urgente.setPuestoAtencion(puesto);
+        urgente.incrementarIntentos();
+
+        turnoActual = urgente;
+        dniActual = dni;
+        puestoActual = puesto;
+    }
+
+    private void procesarDescartado(String dni, int puesto) {
+        // Guardamos un turno marcado como expirado para que se refleje en historial.
+        Turno expirado = new Turno(dni, true);
+        expirado.setPuestoAtencion(puesto);
+        agregarAlHistorial(expirado);
+    }
+
+    private void agregarAlHistorial(Turno turno) {
+        synchronized (historial) {
+            historial.addFirst(turno);
+            while (historial.size() > MAX_HISTORIAL) {
+                historial.removeLast();
+            }
+        }
+    }
+
     public Turno getTurnoActual() {
         return turnoActual;
     }
 
-    /**
-     * Obtiene el puesto de atención del turno actual que se está atendiendo. El
-     * puesto de atención se actualiza cada vez que se recibe un mensaje del
-     * servidor central indicando un nuevo turno o un turno urgente. Si el mensaje
-     * indica que un turno fue descartado por expirar, el puesto de atención del
-     * turno actual no se actualiza, pero el historial se mantiene actualizado para
-     * reflejar ese estado. El método devuelve el puesto de atención del turno
-     * actual, o "---" si no hay un turno actual definido. El puesto de atención se
-     * utiliza para mostrar la información del cliente que se está atendiendo en la
-     * pantalla pública, junto con su DNI. Si no hay un turno actual definido, se
-     * muestra "---" en la pantalla pública para indicar que no hay un cliente
-     * siendo atendido en ese momento. Si el turno actual tiene un puesto de
-     * atención asignado, se muestra ese número en la pantalla pública para indicar
-     * el puesto donde se está atendiendo al cliente.
-     * 
-     * @return El puesto de atención del turno actual que se está atendiendo, o
-     *         "---" si no hay un turno actual definido. El puesto de atención se
-     *         utiliza para mostrar la información del cliente que se está
-     *         atendiendo en la pantalla pública, junto con su DNI. Si no hay un
-     *         turno actual definido, se debe mostrar "---" en la pantalla pública
-     *         para indicar que no hay un cliente siendo atendido en ese momento. Si
-     *         el turno actual tiene un puesto de atención asignado, se debe mostrar
-     *         ese número en la pantalla pública para indicar el puesto donde se
-     *         está atendiendo al cliente.
-     */
-    public String getPuestoActual() {
-        return turnoActual != null ? String.valueOf(turnoActual.getPuestoAtencion()) : "---";
+    public String getDniActual() {
+        return dniActual;
     }
 
-    /**
-     * Obtiene el DNI del cliente del turno actual que se está atendiendo. El DNI
-     * del cliente se actualiza cada vez que se recibe un mensaje del servidor
-     * central indicando un nuevo turno o un turno urgente. Si el mensaje indica que
-     * un turno fue descartado por expirar, el DNI del cliente del turno actual no
-     * se actualiza, pero el historial se mantiene actualizado para reflejar ese
-     * estado. El método devuelve el DNI del cliente del turno actual, o "---" si no
-     * hay un turno actual definido. El DNI del cliente se utiliza para mostrar la
-     * información del cliente que se está atendiendo en la pantalla pública, junto
-     * con el puesto de atención. Si no hay un turno actual definido, se muestra
-     * "---" en la pantalla pública para indicar que no hay un cliente siendo
-     * atendido en ese momento. Si el turno actual tiene un DNI de cliente asignado,
-     * se muestra ese número en la pantalla pública para indicar el cliente que se
-     * está atendiendo.
-     * 
-     * @return El DNI del cliente del turno actual que se está atendiendo, o "---"
-     *         si no hay un turno actual definido. El DNI del cliente se utiliza
-     *         para mostrar la información del cliente que se está atendiendo en la
-     *         pantalla pública, junto con el puesto de atención. Si no hay un turno
-     *         actual definido, se debe mostrar "---" en la pantalla pública para
-     *         indicar que no hay un cliente siendo atendido en ese momento. Si el
-     *         turno actual tiene un DNI de cliente asignado, se debe mostrar ese
-     *         número en la pantalla pública para indicar el cliente que se está
-     *         atendiendo.
-     */
-    public String getDniActual() {
-        return turnoActual != null ? turnoActual.getDniCliente() : "---";
+    public int getPuestoActual() {
+        return puestoActual;
+    }
+
+    public LinkedList<Turno> getHistorial() {
+        synchronized (historial) {
+            return new LinkedList<>(historial);
+        }
+    }
+
+    public String getFormato() {
+        return formato;
     }
 }

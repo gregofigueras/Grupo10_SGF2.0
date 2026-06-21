@@ -24,31 +24,60 @@ public class ColaEsperaJSON implements IColaEsperaDAO {
             if (!file.exists())
                 return new LinkedList<>();
 
-            String encriptado = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
-            if (encriptado.isEmpty())
+            String json = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
+            if (json.isEmpty())
                 return new LinkedList<>();
 
-            String json = encriptador.desencriptar(encriptado);
-            // TypeToken le enseña a Gson cómo leer una Colección genérica
-            Type tipoCola = new TypeToken<LinkedList<Turno>>() {
-            }.getType();
-            Queue<Turno> cola = gson.fromJson(json, tipoCola);
+            Type tipoCola = new TypeToken<LinkedList<Turno>>() {}.getType();
+            Queue<Turno> colaGuardada = gson.fromJson(json, tipoCola);
 
-            return cola == null ? new LinkedList<>() : cola;
+            Queue<Turno> cola = new LinkedList<>();
+            if (colaGuardada != null) {
+                for (Turno t : colaGuardada) {
+                    String dniReal = t.getDniCliente();
+                    try {
+                        dniReal = encriptador.desencriptar(dniReal);
+                    } catch (Exception ignored) {
+                    }
+
+                    Turno copia = new Turno(dniReal);
+                    copia.setPuestoAtencion(t.getPuestoAtencion());
+                    for (int i = 0; i < t.getIntentosLlamado(); i++) {
+                        copia.incrementarIntentos();
+                    }
+                    cola.add(copia);
+                }
+            }
+
+            return cola;
         } catch (Exception e) {
             return new LinkedList<>();
         }
     }
 
+
     private void escribirArchivo(Queue<Turno> cola) {
         try {
-            String json = gson.toJson(cola);
-            String encriptado = encriptador.encriptar(json);
-            Files.write(Paths.get(RUTA_ARCHIVO), encriptado.getBytes());
+            Queue<Turno> colaParaGuardar = new LinkedList<>();
+
+            for (Turno t : cola) {
+                Turno copia = new Turno(encriptador.encriptar(t.getDniCliente()));
+                copia.setPuestoAtencion(t.getPuestoAtencion());
+
+                for (int i = 0; i < t.getIntentosLlamado(); i++) {
+                    copia.incrementarIntentos();
+                }
+
+                colaParaGuardar.add(copia);
+            }
+
+            String json = gson.toJson(colaParaGuardar);
+            Files.write(Paths.get(RUTA_ARCHIVO), json.getBytes());
         } catch (Exception e) {
             System.out.println("Error guardando cola de espera: " + e.getMessage());
         }
     }
+
 
     // --- MÉTODOS DE LA INTERFAZ ---
 

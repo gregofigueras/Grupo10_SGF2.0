@@ -19,17 +19,28 @@ public class HistorialLlamadosTP implements IHistorialLlamadosDAO {
             File file = new File(RUTA_ARCHIVO);
             if (!file.exists())
                 return historial;
-            String encriptado = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
-            if (encriptado.trim().isEmpty())
+
+            // LEER TXT NORMAL (NO ENCRIPTADO)
+            String datosPuros = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
+            if (datosPuros.trim().isEmpty())
                 return historial;
 
-            String datosPuros = encriptador.desencriptar(encriptado);
             String[] lineas = datosPuros.split("\n");
             for (String linea : lineas) {
                 if (linea.trim().isEmpty())
                     continue;
                 String[] campos = linea.split(";");
-                Turno t = new Turno(campos[0]);
+
+                // DESENCRIPTAR SOLO EL DNI (primer campo)
+                String dniEncriptado = campos[0];
+                String dniReal = dniEncriptado;
+                try {
+                    dniReal = encriptador.desencriptar(dniEncriptado);
+                } catch (Exception e) {
+                    // El DNI no estaba encriptado
+                }
+
+                Turno t = new Turno(dniReal);
                 t.setPuestoAtencion(Integer.parseInt(campos[1]));
                 int intentos = Integer.parseInt(campos[2]);
                 for (int i = 0; i < intentos; i++)
@@ -45,12 +56,15 @@ public class HistorialLlamadosTP implements IHistorialLlamadosDAO {
         try {
             StringBuilder sb = new StringBuilder();
             for (Turno t : lista) {
-                sb.append(t.getDniCliente()).append(";")
+                // ENCRIPTAR SOLO EL DNI
+                String dniEncriptado = encriptador.encriptar(t.getDniCliente());
+
+                sb.append(dniEncriptado).append(";")
                         .append(t.getPuestoAtencion()).append(";")
                         .append(t.getIntentosLlamado()).append("\n");
             }
-            String encriptado = encriptador.encriptar(sb.toString());
-            Files.write(Paths.get(RUTA_ARCHIVO), encriptado.getBytes());
+            // GUARDAR TXT SIN ENCRIPTAR (SOLO DNIs ENCRIPTADOS)
+            Files.write(Paths.get(RUTA_ARCHIVO), sb.toString().getBytes());
         } catch (Exception e) {
         }
     }
