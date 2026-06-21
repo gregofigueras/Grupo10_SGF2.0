@@ -32,8 +32,9 @@ public class ServidorCentral {
     private static IRenotificacionDAO renotificacionDAO;
 
     // ESTE MÉTODO REEMPLAZA AL ANTIGUO MAIN
-    public void iniciar(boolean primario, int pKiosco, int pOperador, String ipPan, int pPan, String ipRes, String formato, int clave) {
+    public void iniciar(boolean primario, int pKiosco, int pOperador, String ipPan, int pPan, String ipRes, String formato, int clave, String idNodo) {
         esPrimario = primario;
+        ConfigPersistencia.setSufijo("_" + idNodo);
         PUERTO_KIOSCO = pKiosco;
         PUERTO_OPERADOR = pOperador;
         IP_PANTALLA = ipPan;
@@ -93,26 +94,30 @@ public class ServidorCentral {
         }).start();
     }
 
-    private static void notificarCambioAlRespaldo() {
+    private static void enviarMensajeAlRespaldo(String mensaje) {
         if (!esPrimario)
             return;
-
         try (DatagramSocket socket = new DatagramSocket()) {
             InetAddress ipResp = InetAddress.getByName(IP_RESPALDO);
-
-            StringBuilder estadoFila = new StringBuilder("SYNC:");
-            for (Turno t : filaEspera)
-                estadoFila.append(t.getDniCliente()).append(",");
-            estadoFila.append("|");
-            for (Integer p : puestosActivos)
-                estadoFila.append(p).append(",");
-
-            byte[] buffer = estadoFila.toString().getBytes();
+            byte[] buffer = mensaje.getBytes();
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length, ipResp, PUERTO_HEARTBEAT);
             socket.send(packet);
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private static void notificarCambioAlRespaldo() {
+        if (!esPrimario)
+            return;
+        StringBuilder estadoFila = new StringBuilder("SYNC:");
+        for (Turno t : filaEspera)
+            estadoFila.append(t.getDniCliente()).append(",");
+        estadoFila.append("|");
+        for (Integer p : puestosActivos)
+            estadoFila.append(p).append(",");
+
+        enviarMensajeAlRespaldo(estadoFila.toString());
     }
 
     private static void iniciarMonitorHeartbeat() {
@@ -178,36 +183,36 @@ public class ServidorCentral {
                 }
             }
 
-        } else if (mensaje.startsWith("HISTORIAL:")) {
-            String[] registros = mensaje.substring(10).split("\\|");
-            for (String registro : registros) {
-                if (!registro.isEmpty()) {
-                    String[] campos = registro.split(";");
-                    if (campos.length >= 3) {
-                        Turno t = new Turno(campos[0]);
-                        t.setPuestoAtencion(Integer.parseInt(campos[1]));
-                        int intentos = Integer.parseInt(campos[2]);
-                        for (int i = 0; i < intentos; i++) {
-                            t.incrementarIntentos();
-                        }
-
-                        // El respaldo también persiste el historial
-                        if (historialDAO != null) {
-                            historialDAO.registrarLlamado(t);
-                        }
-                    }
-                }
-            }
-
-        } else if (mensaje.startsWith("RENOTIF:")) {
-            String[] renotifs = mensaje.substring(8).split("\\|");
-            for (String renotif : renotifs) {
-                // El respaldo también persiste las renotificaciones
-                if (!renotif.isEmpty() && renotificacionDAO != null) {
-                    renotificacionDAO.registrarIntentoReintentado(renotif);
-                }
-            }
+        } else if (mensaje.startsWith("HISTORIAL_ADD:")) {
+            Turno t = parsearTurnoMensaje(mensaje.substring(14));
+            if (t != null && historialDAO != null) historialDAO.registrarLlamado(t);
+        } else if (mensaje.startsWith("HISTORIAL_UPD:")) {
+            Turno t = parsearTurnoMensaje(mensaje.substring(14));
+            if (t != null && historialDAO != null) historialDAO.actualizarLlamado(t);
+        } else if (mensaje.startsWith("RENOTIF_ADD:")) {
+            String dni = mensaje.substring(12);
+            if (renotificacionDAO != null) renotificacionDAO.registrarIntentoReintentado(dni);
+        } else if (mensaje.startsWith("RENOTIF_DEL:")) {
+            String dni = mensaje.substring(12);
+            if (renotificacionDAO != null) renotificacionDAO.limpiarHistorialIntentos(dni);
         }
+    }
+
+    private static Turno parsearTurnoMensaje(String datos) {
+        String[] campos = datos.split(";");
+        if (campos.length >= 3) {
+            Turno t = new Turno(campos[0]);
+            t.setPuestoAtencion(Integer.parseInt(campos[1]));
+            int intentos = Integer.parseInt(campos[2]);
+            for (int i = 0; i < intentos; i++) {
+                t.incrementarIntentos();
+            }
+            if (campos.length > 3) {
+                t.setExpirado(Boolean.parseBoolean(campos[3]));
+            }
+            return t;
+        }
+        return null;
     }
 
     private static void asumirRolPrimario() {
@@ -323,12 +328,13 @@ public class ServidorCentral {
                     turno.setPuestoAtencion(idPuesto);
                     turno.incrementarIntentos();
 
-                    // Tanto primario como respaldo persisten
+                    // Solo primario persiste y avisa al respaldo
                     if (colaEsperaDAO != null) {
                         colaEsperaDAO.getSiguiente();
                     }
                     if (historialDAO != null) {
                         historialDAO.registrarLlamado(turno);
+                        enviarMensajeAlRespaldo("HISTORIAL_ADD:" + turno.getDniCliente() + ";" + turno.getPuestoAtencion() + ";" + turno.getIntentosLlamado() + ";" + turno.isExpirado());
                     }
 
                     notificarCambioAlRespaldo();
@@ -342,9 +348,14 @@ public class ServidorCentral {
                 if (turno != null) {
                     turno.incrementarIntentos();
 
-                    // Tanto primario como respaldo persisten
+                    // Solo primario persiste y avisa al respaldo
                     if (renotificacionDAO != null) {
                         renotificacionDAO.registrarIntentoReintentado(turno.getDniCliente());
+                        enviarMensajeAlRespaldo("RENOTIF_ADD:" + turno.getDniCliente());
+                    }
+                    if (historialDAO != null) {
+                        historialDAO.actualizarLlamado(turno);
+                        enviarMensajeAlRespaldo("HISTORIAL_UPD:" + turno.getDniCliente() + ";" + turno.getPuestoAtencion() + ";" + turno.getIntentosLlamado() + ";" + turno.isExpirado());
                     }
 
                     if (turno.getIntentosLlamado() <= 3) {
@@ -352,10 +363,16 @@ public class ServidorCentral {
                         notificarPantalla("URGENTE_" + turno.getDniCliente() + "_" + idPuesto);
                     } else {
                         puestosAtencion.remove(idPuesto);
+                        turno.setExpirado(true);
 
-                        // Tanto primario como respaldo persisten
+                        // Solo primario persiste y avisa al respaldo
                         if (renotificacionDAO != null) {
                             renotificacionDAO.limpiarHistorialIntentos(turno.getDniCliente());
+                            enviarMensajeAlRespaldo("RENOTIF_DEL:" + turno.getDniCliente());
+                        }
+                        if (historialDAO != null) {
+                            historialDAO.actualizarLlamado(turno);
+                            enviarMensajeAlRespaldo("HISTORIAL_UPD:" + turno.getDniCliente() + ";" + turno.getPuestoAtencion() + ";" + turno.getIntentosLlamado() + ";" + turno.isExpirado());
                         }
 
                         out.println(encriptador.encriptar("DESCARTADO"));

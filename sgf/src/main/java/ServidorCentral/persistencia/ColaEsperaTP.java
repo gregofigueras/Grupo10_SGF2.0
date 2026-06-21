@@ -10,7 +10,7 @@ import java.util.LinkedList;
 import java.util.Queue;
 
 public class ColaEsperaTP implements IColaEsperaDAO {
-    private final String RUTA_ARCHIVO = "cola_espera.txt";
+    private final String RUTA_ARCHIVO = "cola_espera" + ConfigPersistencia.getSufijo() + ".txt";
     private final Encriptador encriptador = new Encriptador(123456);
 
     private Queue<Turno> leerArchivo() {
@@ -21,12 +21,7 @@ public class ColaEsperaTP implements IColaEsperaDAO {
                 return cola;
             }
 
-            String encriptado = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
-            if (encriptado.trim().isEmpty()) {
-                return cola;
-            }
-
-            String datosPuros = encriptador.desencriptar(encriptado);
+            String datosPuros = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
             if (datosPuros.trim().isEmpty()) {
                 return cola;
             }
@@ -49,7 +44,12 @@ public class ColaEsperaTP implements IColaEsperaDAO {
                 } catch (Exception ignored) {
                 }
 
-                Turno t = new Turno(dniReal);
+                boolean expirado = false;
+                if (campos.length > 3) {
+                    expirado = Boolean.parseBoolean(campos[3].trim());
+                }
+
+                Turno t = new Turno(dniReal, expirado);
                 t.setPuestoAtencion(Integer.parseInt(campos[1]));
 
                 int intentos = Integer.parseInt(campos[2]);
@@ -76,11 +76,11 @@ public class ColaEsperaTP implements IColaEsperaDAO {
 
                 sb.append(dniEncriptado).append(";")
                         .append(t.getPuestoAtencion()).append(";")
-                        .append(t.getIntentosLlamado()).append("\n");
+                        .append(t.getIntentosLlamado()).append(";")
+                        .append(t.isExpirado()).append("\n");
             }
 
-            String encriptado = encriptador.encriptar(sb.toString());
-            Files.write(Paths.get(RUTA_ARCHIVO), encriptado.getBytes());
+            Files.write(Paths.get(RUTA_ARCHIVO), sb.toString().getBytes());
         } catch (Exception e) {
         }
     }

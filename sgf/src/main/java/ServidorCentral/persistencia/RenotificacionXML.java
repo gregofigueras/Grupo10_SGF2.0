@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RenotificacionXML implements IRenotificacionDAO {
-    private final String RUTA_ARCHIVO = "renotificaciones.xml";
+    private final String RUTA_ARCHIVO = "renotificaciones" + ConfigPersistencia.getSufijo() + ".xml";
     private final Encriptador encriptador = new Encriptador(123456);
 
     private Map<String, Integer> leerArchivo() {
@@ -24,20 +24,24 @@ public class RenotificacionXML implements IRenotificacionDAO {
             File file = new File(RUTA_ARCHIVO);
             if (!file.exists())
                 return mapa;
-            String encriptado = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
-            if (encriptado.trim().isEmpty())
+            String xml = new String(Files.readAllBytes(Paths.get(RUTA_ARCHIVO)));
+            if (xml.trim().isEmpty())
                 return mapa;
 
-            String xml = encriptador.desencriptar(encriptado);
             Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder()
                     .parse(new InputSource(new StringReader(xml)));
 
             NodeList nList = doc.getElementsByTagName("registro");
             for (int i = 0; i < nList.getLength(); i++) {
                 Element e = (Element) nList.item(i);
-                String dni = e.getElementsByTagName("dni").item(0).getTextContent();
+                String dniGuardado = e.getElementsByTagName("dni").item(0).getTextContent();
+                String dniReal = dniGuardado;
+                try {
+                    dniReal = encriptador.desencriptar(dniGuardado);
+                } catch (Exception ignored) {
+                }
                 int intentos = Integer.parseInt(e.getElementsByTagName("intentos").item(0).getTextContent());
-                mapa.put(dni, intentos);
+                mapa.put(dniReal, intentos);
             }
         } catch (Exception e) {
         }
@@ -48,15 +52,19 @@ public class RenotificacionXML implements IRenotificacionDAO {
         try {
             StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<renotificaciones>\n");
             for (Map.Entry<String, Integer> entry : mapa.entrySet()) {
+                String dniEncriptado = entry.getKey();
+                if (dniEncriptado != null && !dniEncriptado.isEmpty()) {
+                    dniEncriptado = encriptador.encriptar(dniEncriptado);
+                }
+
                 sb.append("  <registro>\n")
-                        .append("    <dni>").append(entry.getKey()).append("</dni>\n")
+                        .append("    <dni>").append(dniEncriptado).append("</dni>\n")
                         .append("    <intentos>").append(entry.getValue()).append("</intentos>\n")
                         .append("  </registro>\n");
             }
             sb.append("</renotificaciones>");
 
-            String encriptado = encriptador.encriptar(sb.toString());
-            Files.write(Paths.get(RUTA_ARCHIVO), encriptado.getBytes());
+            Files.write(Paths.get(RUTA_ARCHIVO), sb.toString().getBytes());
         } catch (Exception e) {
         }
     }

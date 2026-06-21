@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class HistorialLlamadosTP implements IHistorialLlamadosDAO {
-    private final String RUTA_ARCHIVO = "historial_llamados.txt";
+    private final String RUTA_ARCHIVO = "historial_llamados" + ConfigPersistencia.getSufijo() + ".txt";
     private final Encriptador encriptador = new Encriptador(123456);
 
     private List<Turno> leerArchivo() {
@@ -40,7 +40,12 @@ public class HistorialLlamadosTP implements IHistorialLlamadosDAO {
                     // El DNI no estaba encriptado
                 }
 
-                Turno t = new Turno(dniReal);
+                boolean expirado = false;
+                if (campos.length > 3) {
+                    expirado = Boolean.parseBoolean(campos[3]);
+                }
+
+                Turno t = new Turno(dniReal, expirado);
                 t.setPuestoAtencion(Integer.parseInt(campos[1]));
                 int intentos = Integer.parseInt(campos[2]);
                 for (int i = 0; i < intentos; i++)
@@ -61,7 +66,8 @@ public class HistorialLlamadosTP implements IHistorialLlamadosDAO {
 
                 sb.append(dniEncriptado).append(";")
                         .append(t.getPuestoAtencion()).append(";")
-                        .append(t.getIntentosLlamado()).append("\n");
+                        .append(t.getIntentosLlamado()).append(";")
+                        .append(t.isExpirado()).append("\n");
             }
             // GUARDAR TXT SIN ENCRIPTAR (SOLO DNIs ENCRIPTADOS)
             Files.write(Paths.get(RUTA_ARCHIVO), sb.toString().getBytes());
@@ -74,6 +80,22 @@ public class HistorialLlamadosTP implements IHistorialLlamadosDAO {
         List<Turno> historial = leerArchivo();
         historial.add(turno);
         escribirArchivo(historial);
+    }
+
+    @Override
+    public void actualizarLlamado(Turno turno) {
+        List<Turno> historial = leerArchivo();
+        boolean modificado = false;
+        for (int i = 0; i < historial.size(); i++) {
+            if (historial.get(i).getDniCliente().equals(turno.getDniCliente())) {
+                historial.set(i, turno);
+                modificado = true;
+                break;
+            }
+        }
+        if (modificado) {
+            escribirArchivo(historial);
+        }
     }
 
     @Override
